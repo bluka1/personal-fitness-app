@@ -99,6 +99,7 @@ const relDayLabel = (d) => {
   return { "-1": "Jučer", "0": "Danas", "1": "Sutra", "2": "Prekosutra" }[diff] || "Dan";
 };
 const num = (v, fb) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? (fb || 0) : n; };
+const findIngByName = (name) => S.ingredients.find((i) => i.name.trim().toLowerCase() === String(name).trim().toLowerCase());
 
 function recipeMacros(recipe) {
   if (recipe.mode === "direct" && recipe.macros) {
@@ -325,18 +326,27 @@ function viewVise() {
   for (let i = 6; i >= 0; i--) {
     const d = addDays(new Date(), -i);
     const l = S.logs[dateKey(d)];
-    week.push({ d: d, kcal: l ? dayTotals(l).kcal : 0 });
+    const tot = l ? dayTotals(l) : { kcal: 0, p: 0, c: 0, f: 0 };
+    week.push({ d: d, kcal: tot.kcal, p: tot.p, c: tot.c, f: tot.f, water: l ? (l.water || 0) : 0, logged: !!(l && l.meals && l.meals.length) });
   }
   const maxK = Math.max(S.settings.targets.kcal, ...week.map((w) => w.kcal), 1);
   const h = storageHealth();
   const g = S.settings.targets;
+  const logged = week.filter((w) => w.logged);
+  const nDays = logged.length;
+  const avg = (k) => (nDays ? logged.reduce((a, w) => a + w[k], 0) / nDays : 0);
+  const wDays = week.filter((w) => w.water > 0);
+  const avgWater = wDays.length ? wDays.reduce((a, w) => a + w.water, 0) / wDays.length : 0;
 
   return `
   <div class="pad">
     <h1 class="mb16">Više</h1>
 
     <div class="card p16 mb14">
-      <div class="eyebrow mb14">Zadnjih 7 dana</div>
+      <div class="row spread mb14">
+        <span class="eyebrow">Tjedni pregled</span>
+        <span class="num sub" style="margin:0">${nDays}/7 dana</span>
+      </div>
       <div class="row" style="align-items:flex-end;gap:6px;height:92px">
         ${week.map((w) => `
           <div style="flex:1;text-align:center">
@@ -344,6 +354,24 @@ function viewVise() {
             <div class="eyebrow" style="margin-top:6px;font-size:9px">${["N", "P", "U", "S", "Č", "P", "S"][w.d.getDay()]}</div>
             <div class="num" style="font-size:9.5px;color:var(--mut)">${w.kcal ? r0(w.kcal) : "–"}</div>
           </div>`).join("")}
+      </div>
+      <div class="divider"></div>
+      <div class="eyebrow mb10">Dnevni prosjek</div>
+      <div class="row" style="gap:10px">
+        ${[["kcal", nDays ? r0(avg("kcal")) : "–", g.kcal, "kcal"],
+      ["p", nDays ? r1(avg("p")) : "–", g.p, "P"],
+      ["c", nDays ? r1(avg("c")) : "–", g.c, "UH"],
+      ["f", nDays ? r1(avg("f")) : "–", g.f, "M"]].map(([k, val, tg, lbl]) => `
+          <div style="flex:1">
+            <div class="num" style="font-size:17px;font-weight:700">${val}</div>
+            <div class="num" style="font-size:10.5px;color:var(--mut)">/ ${tg}</div>
+            <div class="eyebrow" style="margin-top:5px;font-size:9px">${lbl}</div>
+          </div>`).join("")}
+      </div>
+      <div class="divider"></div>
+      <div class="row spread">
+        <span class="eyebrow">Prosječna voda</span>
+        <span class="num" style="font-size:15px;font-weight:700">${wDays.length ? (avgWater / 1000).toFixed(2).replace(".", ",") + " l" : "–"}<span class="mut" style="font-size:11px;font-weight:400"> / ${(g && S.settings.waterGoal ? (S.settings.waterGoal / 1000).toFixed(1).replace(".", ",") : "0")} l</span></span>
       </div>
     </div>
 
@@ -1189,7 +1217,12 @@ document.addEventListener("click", (e) => {
     ["kcal", "p", "c", "f"].forEach((k) => { x[k] = num($("#im_" + k).value, 0); });
     if (!x.name.trim()) { toast("Namirnica treba naziv"); return; }
     const i = S.ingredients.findIndex((y) => y.id === x.id);
-    if (i >= 0) S.ingredients[i] = x; else S.ingredients.push(x);
+    if (i >= 0) {
+      S.ingredients[i] = x;
+    } else {
+      if (findIngByName(x.name)) { toast("„" + x.name.trim() + "” već postoji"); return; }
+      S.ingredients.push(x);
+    }
     if (saveData()) toast("Spremljeno");
     S.sheet = null; render(); return;
   }
@@ -1208,11 +1241,17 @@ document.addEventListener("click", (e) => {
     catch (err) { $("#imp_err").textContent = "Ne mogu pročitati JSON. Provjeri zareze i navodnike."; return; }
     if (el.dataset.kind === "ing") {
       if (!Array.isArray(obj)) { $("#imp_err").textContent = "Očekujem niz [ ... ]"; return; }
-      obj.forEach((x) => S.ingredients.push({
-        id: uid("i"), name: String(x.name || "bez naziva"), state: x.state || "as_sold",
-        kcal: num(x.kcal, 0), p: num(x.p, 0), c: num(x.c, 0), f: num(x.f, 0),
-      }));
-      saveData(); toast("Dodano: " + obj.length);
+      let addedI = 0, skippedI = 0;
+      obj.forEach((x) => {
+        const name = String(x.name || "bez naziva");
+        if (findIngByName(name)) { skippedI++; return; }
+        S.ingredients.push({
+          id: uid("i"), name: name, state: x.state || "as_sold",
+          kcal: num(x.kcal, 0), p: num(x.p, 0), c: num(x.c, 0), f: num(x.f, 0),
+        });
+        addedI++;
+      });
+      saveData(); toast("Dodano: " + addedI + (skippedI ? " · preskočeno (postoji): " + skippedI : ""));
     } else if (el.dataset.kind === "rec") {
       if (!Array.isArray(obj)) { $("#imp_err").textContent = "Očekujem niz [ ... ]"; return; }
       const slotIds = SLOTS.map((s) => s.id);
