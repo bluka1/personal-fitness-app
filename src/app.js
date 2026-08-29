@@ -94,6 +94,10 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const DANI = ["nedjelja", "ponedjeljak", "utorak", "srijeda", "četvrtak", "petak", "subota"];
 const MJ = ["sij", "velj", "ožu", "tra", "svi", "lip", "srp", "kol", "ruj", "lis", "stu", "pro"];
 const prettyDate = (d) => DANI[d.getDay()] + ", " + d.getDate() + ". " + MJ[d.getMonth()];
+const relDayLabel = (d) => {
+  const diff = Math.round((new Date(dateKey(d)) - new Date(dateKey(new Date()))) / 86400000);
+  return { "-1": "Jučer", "0": "Danas", "1": "Sutra", "2": "Prekosutra" }[diff] || "Dan";
+};
 const num = (v, fb) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? (fb || 0) : n; };
 
 function recipeMacros(recipe) {
@@ -186,6 +190,7 @@ function viewDanas() {
   const pct = Math.min(100, (t.kcal / (g.kcal || 1)) * 100);
   const left = g.kcal - t.kcal;
   const isToday = dateKey(S.day) === dateKey(new Date());
+  const dayLabel = relDayLabel(S.day);
   const glasses = Math.ceil(S.settings.waterGoal / S.settings.glass);
 
   let html = `
@@ -193,10 +198,10 @@ function viewDanas() {
     <div class="row spread mb16">
       <button class="btn btn-g sq" data-act="day" data-n="-1">‹</button>
       <div class="center">
-        <div class="eyebrow">${isToday ? "Danas" : "Dan"}</div>
+        <div class="eyebrow">${dayLabel}</div>
         <div class="dsp" style="font-size:16px;font-weight:700;margin-top:2px">${prettyDate(S.day)}</div>
       </div>
-      <button class="btn btn-g sq" data-act="day" data-n="1" ${isToday ? "disabled" : ""}>›</button>
+      <button class="btn btn-g sq" data-act="day" data-n="1">›</button>
     </div>
 
     <div class="card p18 mb14">
@@ -1313,6 +1318,21 @@ function collectRecipe() {
     r.macros = r.macros || {};
     ["kcal", "p", "c", "f"].forEach((k) => { r.macros[k] = num($("#rm_" + k).value, 0); });
   }
+}
+
+/* Skupi list na vidljivi dio ekrana kad se digne tipkovnica, da rezultati
+   pretrage ne ostanu skriveni iza nje. */
+function fitSheet() {
+  const vv = window.visualViewport, el = document.getElementById("sheet");
+  if (!vv || !el) return;
+  el.style.top = vv.offsetTop + "px";
+  el.style.height = vv.height + "px";
+  el.style.bottom = "auto";
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", fitSheet);
+  visualViewport.addEventListener("scroll", fitSheet);
+  fitSheet();
 }
 
 /* ---------- start ---------- */
