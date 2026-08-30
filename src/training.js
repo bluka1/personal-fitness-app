@@ -209,6 +209,7 @@ function sheetSchedule(date) {
           ${s.status === "planned" ? `<div class="row" style="gap:6px">
             <button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">Pokreni</button>
             <button class="btn btn-g sm" data-act="t-cal-skip" data-id="${s.id}">Preskoči</button>
+            <button class="x" data-act="t-del-session" data-id="${s.id}">×</button>
           </div>` : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">Otvori</button>`}
         </div>
       </div>`).join("") : `<p class="note">Ništa planirano za ovaj dan.</p>`}
@@ -252,6 +253,7 @@ function sheetSession(s) {
         <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">${esc(exName(pe.exerciseId))}</div>
         ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">Serija ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
       </div>`).join("")}
+    <button class="btn btn-g wide" style="margin-top:6px" data-act="t-del-session" data-id="${esc(s.id)}">Obriši trening</button>
   </div>`;
 }
 
@@ -338,13 +340,15 @@ function paneLog(active) {
       </div>
       ${snap.exercises.map((row, ei) => {
         const pe = active.log.performedExercises[ei];
-        const best = bestWeight(S.training.sessions, row.exerciseId);
+        const bw = bestWeightTimes(S.training.sessions, row.exerciseId);
+        const last = lastBestSet(S.training.sessions, row.exerciseId);
         return `
         <div class="mb12">
           <div class="row spread mb6">
             <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
-            ${best ? `<span class="num sub" style="margin:0">najbolje ${best} kg</span>` : ""}
+            ${bw.weight ? `<span class="num sub" style="margin:0">najbolje ${bw.weight} kg · ${bw.times}×</span>` : ""}
           </div>
+          ${last ? `<div class="num sub2" style="margin:-2px 0 8px">prošli put: ${last.reps} × ${last.weight} kg</div>` : ""}
           ${pe.sets.map((s, si) => `
             <div class="row spread" style="gap:8px;margin-bottom:6px">
               <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" class="mini" style="flex:1" aria-label="Ponavljanja">
@@ -509,7 +513,7 @@ document.addEventListener("click", (e) => {
     S.sheet = { type: "t-leave", pending: { abandon: true } };
     renderSheet(); return;
   }
-  if (a === "t-resume-open") { S.trainingTab = "log"; render(); return; }
+  if (a === "t-resume-open") { S.tab = "trening"; S.trainingTab = "log"; render(); return; }
 
   if (a === "t-new-tpl") { S.sheet = { type: "t-template", tpl: { title: "", exercises: [] } }; renderSheet(); return; }
   if (a === "t-edit-tpl") {
@@ -571,6 +575,14 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "t-open-session") { S.sheet = { type: "t-session", session: S.training.sessions.find((x) => x.id === el.dataset.id) }; renderSheet(); return; }
+  if (a === "t-del-session") {
+    const id = el.dataset.id;
+    const s = S.training.sessions.find((x) => x.id === id);
+    if (s && s.status === "active") unregisterLeaveGuard(); // brišemo li aktivni, makni čuvar
+    S.training.sessions = S.training.sessions.filter((x) => x.id !== id);
+    if (saveTraining()) toast("Trening obrisan");
+    S.sheet = null; render(); return;
+  }
 });
 
 /* ---------- aktivna sesija ---------- */
@@ -604,6 +616,35 @@ function collectActiveSets() {
     if (active.log.performedExercises[ei] && active.log.performedExercises[ei].sets[si]) active.log.performedExercises[ei].sets[si].weight = num(inp.value, 0);
   });
   saveTraining();
+}
+
+/* ---------- odsjek na "Danas" (dodaje ga app.js kroz spojnicu) ---------- */
+
+/* Trening zakazan za prikazani dan (S.day). Ako nema — poruka. */
+function trainingDanasSection() {
+  if (!S.training) return "";
+  const key = dateKey(S.day || new Date());
+  const sess = S.training.sessions.filter((s) => s.date === key);
+  let html = `<div class="row spread mb10" style="margin-top:24px"><span class="eyebrow">Trening</span></div>`;
+  if (!sess.length) return html + `<p class="note">Nema predviđenih treninga za danas.</p>`;
+  sess.forEach((s) => {
+    const title = s.snapshot ? s.snapshot.title : ((S.training.templates.find((t) => t.id === s.templateId) || {}).title || "Trening");
+    const label = s.status === "completed" ? "Završeno" : s.status === "active" ? "U tijeku" : s.status === "skipped" ? "Preskočeno" : "Planirano";
+    const action = s.status === "planned" ? `<button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">Pokreni</button>`
+      : s.status === "active" ? `<button class="btn btn-p sm" data-act="t-resume-open">Nastavi</button>`
+      : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">Otvori</button>`;
+    html += `
+    <div class="card p14 mb10">
+      <div class="row spread">
+        <div>
+          <div class="dsp" style="font-size:15px;font-weight:700">${esc(title)}</div>
+          <div class="num sub2">${label}</div>
+        </div>
+        ${action}
+      </div>
+    </div>`;
+  });
+  return html;
 }
 
 /* ---------- registracija ---------- */

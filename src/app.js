@@ -266,6 +266,9 @@ function viewDanas() {
     </div>`;
   });
 
+  /* Trening modul (ako je učitan) dodaje današnji raspored ispod obroka. */
+  if (typeof trainingDanasSection === "function") html += trainingDanasSection();
+
   return html + "</div>";
 }
 

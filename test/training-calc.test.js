@@ -44,3 +44,31 @@ test("activeSession finds the active one or null", () => {
   const a = { id: "x", status: "active" };
   assert.strictEqual(C.activeSession({ sessions: [ { id: "y", status: "planned" }, a ] }), a);
 });
+
+const mk = (id, when, sets) => ({
+  id, status: "completed", date: when, completedAt: when + "T10:00:00Z",
+  log: { performedExercises: [ { exerciseId: "e1", sets } ] },
+});
+
+test("bestWeightTimes sums reps at the max weight across completed sessions", () => {
+  const sessions = [
+    mk("a", "2026-08-01", [ { reps: 5, weight: 100 }, { reps: 3, weight: 100 }, { reps: 8, weight: 80 } ]),
+    mk("b", "2026-08-10", [ { reps: 2, weight: 100 } ]),
+    { id: "c", status: "active", log: { performedExercises: [ { exerciseId: "e1", sets: [ { reps: 1, weight: 200 } ] } ] } },
+  ];
+  // najbolja kilaža 100 (aktivnih 200 se ignorira); dignuta 5+3+2 = 10 puta
+  assert.deepStrictEqual(C.bestWeightTimes(sessions, "e1"), { weight: 100, times: 10 });
+  assert.deepStrictEqual(C.bestWeightTimes(sessions, "nope"), { weight: 0, times: 0 });
+  assert.deepStrictEqual(C.bestWeightTimes([], "e1"), { weight: 0, times: 0 });
+});
+
+test("lastBestSet returns the best set from the most recent completed session", () => {
+  const sessions = [
+    mk("old", "2026-08-01", [ { reps: 5, weight: 90 } ]),
+    mk("new", "2026-08-20", [ { reps: 5, weight: 100 }, { reps: 8, weight: 100 }, { reps: 12, weight: 60 } ]),
+  ];
+  // najnoviji je "new"; najbolja serija = najveća kilaža (100), pa najviše pon (8)
+  assert.deepStrictEqual(C.lastBestSet(sessions, "e1"), { reps: 8, weight: 100 });
+  assert.strictEqual(C.lastBestSet(sessions, "nope"), null);
+  assert.strictEqual(C.lastBestSet([], "e1"), null);
+});
