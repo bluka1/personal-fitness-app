@@ -353,18 +353,34 @@ function paneLog(active) {
           </div>
           ${last ? `<div class="num sub2" style="margin:-2px 0 8px">prošli put: ${last.reps} × ${last.weight} kg</div>` : ""}
           ${pe.sets.map((s, si) => `
-            <div class="row spread" style="gap:8px;margin-bottom:6px">
-              <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" class="mini" style="flex:1" aria-label="Ponavljanja">
+            <div class="setrow${s.done ? " done" : ""}">
+              <button class="chk" data-act="t-set-done" data-ei="${ei}" data-si="${si}" aria-label="Gotovo">${s.done ? "✓" : ""}</button>
+              <div class="stpr">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="-1" aria-label="Manje pon.">−</button>
+                <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" aria-label="Ponavljanja">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="1" aria-label="Više pon.">+</button>
+              </div>
               <span class="mut" style="font-size:12px">×</span>
-              <input inputmode="decimal" data-act="t-set-wt" data-ei="${ei}" data-si="${si}" value="${s.weight}" class="mini" style="flex:1" aria-label="Kilogrami">
-              <span class="sub" style="margin:0">kg</span>
+              <div class="stpr">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="-2.5" aria-label="Manje kg">−</button>
+                <input inputmode="decimal" data-act="t-set-wt" data-ei="${ei}" data-si="${si}" value="${s.weight}" aria-label="Kilogrami">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="2.5" aria-label="Više kg">+</button>
+              </div>
               <button class="x" data-act="t-rmset" data-ei="${ei}" data-si="${si}">×</button>
             </div>`).join("")}
           <button class="btn btn-g sm" data-act="t-addset" data-ei="${ei}">+ serija</button>
         </div>`;
       }).join("")}
       <button class="btn btn-p wide" style="margin-top:6px" data-act="t-finish">Završi trening</button>
-    </div>`;
+    </div>
+    ${S.rest ? `
+    <div class="restbar" id="t-rest">
+      <span>Pauza <span class="num" id="t-rest-num">${fmtDur(Math.max(0, S.rest.endsAt - Date.now()))}</span></span>
+      <span class="row" style="gap:8px">
+        <button data-act="t-rest-plus">+15s</button>
+        <button data-act="t-rest-skip">Preskoči</button>
+      </span>
+    </div>` : ""}`;
   }
   // Dok trening traje, ne nudimo predloške (unos/pokretanje drugog treninga).
   if (!active) {
@@ -454,9 +470,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "t-del-ex") {
-    S.training.exercises = S.training.exercises.filter((y) => y.id !== S.sheet.ex.id);
-    if (saveTraining()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const id = S.sheet.ex.id, name = S.sheet.ex.name;
+    askConfirm({ msg: "Obrisati vježbu „" + (name || "") + "”?", ok: () => {
+      S.training.exercises = S.training.exercises.filter((y) => y.id !== id);
+      if (saveTraining()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   if (a === "t-start") {
@@ -479,12 +499,43 @@ document.addEventListener("click", (e) => {
     active.log.performedExercises[parseInt(el.dataset.ei, 10)].sets.splice(parseInt(el.dataset.si, 10), 1);
     saveTraining(); render(); return;
   }
+  if (a === "t-set-step") {
+    collectActiveSets();
+    const ei = parseInt(el.dataset.ei, 10), si = parseInt(el.dataset.si, 10);
+    const fld = el.dataset.fld, d = parseFloat(el.dataset.d);
+    const set = activeSession(S.training).log.performedExercises[ei].sets[si];
+    let v = (set[fld] || 0) + d;
+    v = fld === "reps" ? Math.max(0, Math.round(v)) : Math.max(0, Math.round(v * 4) / 4);
+    set[fld] = v;
+    saveTraining(); render(); return;
+  }
+  if (a === "t-set-done") {
+    collectActiveSets();
+    const ei = parseInt(el.dataset.ei, 10), si = parseInt(el.dataset.si, 10);
+    const active = activeSession(S.training);
+    const row = active.snapshot.exercises[ei];
+    const set = active.log.performedExercises[ei].sets[si];
+    set.done = !set.done;
+    if (set.done) {
+      const w = set.weight || 0;
+      // PR: pobjeđuje li povijesni najbolji (i najbolji već označeni u ovoj sesiji)
+      const prevBest = bestWeight(S.training.sessions, row.exerciseId);
+      let sessMax = 0;
+      active.log.performedExercises.forEach((pe2) => pe2.sets.forEach((st) => { if (st.done && st !== set && (st.weight || 0) > sessMax) sessMax = st.weight || 0; }));
+      if (w > 0 && prevBest > 0 && w > prevBest && w > sessMax) toast("Novi rekord 🏆 " + w + " kg");
+      const rest = row.restSeconds || 0;
+      if (rest > 0) { S.rest = { endsAt: Date.now() + rest * 1000, exId: row.exerciseId }; if (navigator.vibrate) navigator.vibrate(30); }
+    }
+    saveTraining(); render(); return;
+  }
+  if (a === "t-rest-skip") { S.rest = null; render(); return; }
+  if (a === "t-rest-plus") { if (S.rest) { S.rest.endsAt += 15000; ensureTickers(); } return; }
   if (a === "t-finish") {
     collectActiveSets();
     const active = activeSession(S.training);
     active.status = "completed";
     active.completedAt = new Date().toISOString();
-    unregisterLeaveGuard();
+    unregisterLeaveGuard(); S.rest = null;
     if (saveTraining()) toast("Trening spremljen");
     S.trainingTab = "hist"; S.sheet = null; render(); return;
   }
@@ -496,7 +547,7 @@ document.addEventListener("click", (e) => {
       // Odustajanje: obriši prekinutu aktivnu sesiju.
       const act = activeSession(S.training);
       if (act) S.training.sessions = S.training.sessions.filter((s) => s.id !== act.id);
-      unregisterLeaveGuard(); saveTraining(); render(); return;
+      unregisterLeaveGuard(); S.rest = null; saveTraining(); render(); return;
     }
     const dest = pend.dest || "";
     if (dest.indexOf("ttab:") === 0) { S.trainingTab = dest.slice(5); render(); return; }
@@ -548,9 +599,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "t-del-tpl") {
-    S.training.templates = S.training.templates.filter((x) => x.id !== S.sheet.tpl.id);
-    if (saveTraining()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const id = S.sheet.tpl.id, title = S.sheet.tpl.title;
+    askConfirm({ msg: "Obrisati predložak „" + (title || "") + "”?", ok: () => {
+      S.training.templates = S.training.templates.filter((x) => x.id !== id);
+      if (saveTraining()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   // --- Kalendar i povijest ---
@@ -583,11 +638,14 @@ document.addEventListener("click", (e) => {
   if (a === "t-open-session") { S.sheet = { type: "t-session", session: S.training.sessions.find((x) => x.id === el.dataset.id) }; renderSheet(); return; }
   if (a === "t-del-session") {
     const id = el.dataset.id;
-    const s = S.training.sessions.find((x) => x.id === id);
-    if (s && s.status === "active") unregisterLeaveGuard(); // brišemo li aktivni, makni čuvar
-    S.training.sessions = S.training.sessions.filter((x) => x.id !== id);
-    if (saveTraining()) toast("Trening obrisan");
-    S.sheet = null; render(); return;
+    askConfirm({ msg: "Obrisati ovaj trening?", ok: () => {
+      const s = S.training.sessions.find((x) => x.id === id);
+      if (s && s.status === "active") unregisterLeaveGuard(); // brišemo li aktivni, makni čuvar
+      S.training.sessions = S.training.sessions.filter((x) => x.id !== id);
+      if (saveTraining()) toast("Trening obrisan");
+      S.sheet = null; render();
+    } });
+    return;
   }
 });
 
@@ -635,17 +693,30 @@ function fmtDur(ms) {
   return h ? h + ":" + pad(m) + ":" + pad(ss) : pad(m) + ":" + pad(ss);
 }
 
-/* Poziva se nakon svakog rendera (S.afterRender). Ako je #t-timer u DOM-u
-   (aktivni trening u log prikazu), pokreni sekundno osvježavanje; inače stani. */
-function ensureTimer() {
-  if (_timerInt) { clearInterval(_timerInt); _timerInt = null; }
-  const paint = () => {
-    const el = document.getElementById("t-timer");
+/* Poziva se nakon svakog rendera (S.afterRender). Osvježava štopericu i pauzu
+   svake sekunde dok su relevantni elementi u DOM-u; inače stane. */
+function ensureTickers() {
+  const stop = () => { if (_timerInt) { clearInterval(_timerInt); _timerInt = null; } };
+  const tick = () => {
     const active = activeSession(S.training);
-    if (!el || !active || !active.startedAt) { if (_timerInt) { clearInterval(_timerInt); _timerInt = null; } return; }
-    el.textContent = fmtDur(Date.now() - active.startedAt);
+    const tel = document.getElementById("t-timer");
+    if (tel && active && active.startedAt) tel.textContent = fmtDur(Date.now() - active.startedAt);
+    if (S.rest) {
+      const rem = Math.ceil((S.rest.endsAt - Date.now()) / 1000);
+      if (rem <= 0) {
+        S.rest = null;
+        if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+        const bar = document.getElementById("t-rest");
+        if (bar) bar.remove();
+      } else {
+        const rel = document.getElementById("t-rest-num");
+        if (rel) rel.textContent = fmtDur(rem * 1000);
+      }
+    }
+    if (!document.getElementById("t-timer") && !S.rest) stop();
   };
-  if (document.getElementById("t-timer")) { paint(); _timerInt = setInterval(paint, 1000); }
+  stop();
+  if (document.getElementById("t-timer") || S.rest) { tick(); _timerInt = setInterval(tick, 1000); }
 }
 
 /* ---------- odsjek na "Danas" (dodaje ga app.js kroz spojnicu) ---------- */
@@ -683,7 +754,7 @@ window.onTrainingReady = function () {
   loadTraining();
   S.extraViews = S.extraViews || {};
   S.extraViews.trening = viewTrening;
-  S.afterRender = ensureTimer; // štoperica se pali kad je #t-timer u DOM-u
+  S.afterRender = ensureTickers; // štoperica + pauza se osvježavaju nakon rendera
   // Ubaci gumb u donju navigaciju (prije "Više").
   const nav = document.getElementById("nav");
   if (nav && !nav.querySelector('[data-tab="trening"]')) {

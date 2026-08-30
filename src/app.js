@@ -996,6 +996,13 @@ function sheetImport(kind) {
 /* ---------- render ---------- */
 
 function render() {
+  /* Skoči na vrh samo kad se mijenja prikaz (tab/pod-tab); kod re-rendera
+     istog prikaza (npr. unos serije u treningu) zadrži scroll poziciju. */
+  const key = S.tab + ":" + (S.trainingTab || "");
+  const keepScroll = S._renderKey === key;
+  const y = window.scrollY;
+  S._renderKey = key;
+
   const views = Object.assign({ danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise }, S.extraViews || {});
   $("#main").innerHTML = (views[S.tab] || viewDanas)();
   document.querySelectorAll("#nav button").forEach((b) => {
@@ -1003,9 +1010,26 @@ function render() {
   });
   renderSheet();
   if (S.tab === "vise") updateStorageInfo();
-  window.scrollTo(0, 0);
+  window.scrollTo(0, keepScroll ? y : 0);
   /* Trening modul (ako je učitan) osvježava štopericu nakon rendera. */
   if (typeof S.afterRender === "function") S.afterRender();
+}
+
+/* Generička potvrda za nepovratne radnje (brisanje). ok() se izvrši na "Obriši". */
+function askConfirm(opts) {
+  S.sheet = { type: "confirm", title: opts.title || "Potvrda", msg: opts.msg || "", okLabel: opts.okLabel || "Obriši", ok: opts.ok };
+  renderSheet();
+}
+function confirmSheet(s) {
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12"><h2>${esc(s.title)}</h2></div>
+    <p class="note">${esc(s.msg)}</p>
+    <div class="row" style="gap:8px;margin-top:12px">
+      <button class="btn btn-g grow" data-act="confirm-cancel">Odustani</button>
+      <button class="btn grow" data-act="confirm-ok" style="background:var(--coral);color:#1a1410;font-weight:700">${esc(s.okLabel)}</button>
+    </div>
+  </div>`;
 }
 
 function renderSheet() {
@@ -1014,6 +1038,7 @@ function renderSheet() {
   const s = S.sheet;
   let inner = "";
   if (s.type && s.type.indexOf("t-") === 0 && typeof trainingSheet === "function") inner = trainingSheet(s);
+  else if (s.type === "confirm") inner = confirmSheet(s);
   else if (s.type === "picker") inner = sheetPicker(s.slot);
   else if (s.type === "recipe-view") inner = sheetRecipeView(s.recipe);
   else if (s.type === "recipe-edit") inner = sheetRecipeEdit(s.recipe);
@@ -1046,6 +1071,9 @@ document.addEventListener("click", (e) => {
   const a = el.dataset.act;
 
   if (a === "close") { S.sheet = null; renderSheet(); return; }
+
+  if (a === "confirm-cancel") { S.sheet = null; renderSheet(); return; }
+  if (a === "confirm-ok") { const fn = S.sheet && S.sheet.ok; S.sheet = null; if (fn) fn(); else render(); return; }
 
   if (a === "day") { S.day = addDays(S.day, parseInt(el.dataset.n, 10)); render(); return; }
 
@@ -1152,9 +1180,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "del-recipe") {
-    S.recipes = S.recipes.filter((x) => x.id !== S.sheet.recipe.id);
-    if (saveData()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const rid = S.sheet.recipe.id, rname = S.sheet.recipe.name;
+    askConfirm({ msg: "Obrisati recept „" + rname + "”?", ok: () => {
+      S.recipes = S.recipes.filter((x) => x.id !== rid);
+      if (saveData()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   if (a === "sync-open") { S.sheet = { type: "sync" }; renderSheet(); return; }
@@ -1239,9 +1271,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "del-ing") {
-    S.ingredients = S.ingredients.filter((y) => y.id !== S.sheet.ing.id);
-    if (saveData()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const iid = S.sheet.ing.id, iname = S.sheet.ing.name;
+    askConfirm({ msg: "Obrisati namirnicu „" + iname + "”?", ok: () => {
+      S.ingredients = S.ingredients.filter((y) => y.id !== iid);
+      if (saveData()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   if (a === "import-ing") { S.sheet = { type: "import", kind: "ing" }; renderSheet(); return; }
