@@ -2281,7 +2281,7 @@ document.addEventListener("click", (e) => {
     if (act) S.training.sessions = S.training.sessions.filter((s) => s.id !== act.id);
     saveTraining();
     S.sheet = null;
-    if (!tplId) { render(); return; } // došli s kalendara bez predloška — samo odbaci
+    if (!tplId) { unregisterLeaveGuard(); render(); return; } // došli s kalendara bez predloška — samo odbaci
     startSession(tplId); return;
   }
 
