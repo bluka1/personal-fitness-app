@@ -2052,7 +2052,40 @@ function trainingSheet(s) {
 
 function paneLog(active) {
   let html = "";
-  // (Task 7 ubacuje ovdje "danas" i aktivni trening.)
+  if (active) {
+    const snap = active.snapshot;
+    html += `
+    <div class="card p14 mb14" style="border-color:var(--amber)">
+      <div class="row spread mb10">
+        <div>
+          <div class="eyebrow" style="color:var(--amber)">U tijeku</div>
+          <div style="font-size:16px;font-weight:700;margin-top:2px">${esc(snap.title)}</div>
+        </div>
+        <button class="btn btn-g sm" data-act="t-abandon">Odustani</button>
+      </div>
+      ${snap.exercises.map((row, ei) => {
+        const pe = active.log.performedExercises[ei];
+        const best = bestWeight(S.training.sessions, row.exerciseId);
+        return `
+        <div class="mb12">
+          <div class="row spread mb6">
+            <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
+            ${best ? `<span class="num sub" style="margin:0">najbolje ${best} kg</span>` : ""}
+          </div>
+          ${pe.sets.map((s, si) => `
+            <div class="row spread" style="gap:8px;margin-bottom:6px">
+              <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" class="mini" style="flex:1" aria-label="Ponavljanja">
+              <span class="mut" style="font-size:12px">×</span>
+              <input inputmode="decimal" data-act="t-set-wt" data-ei="${ei}" data-si="${si}" value="${s.weight}" class="mini" style="flex:1" aria-label="Kilogrami">
+              <span class="sub" style="margin:0">kg</span>
+              <button class="x" data-act="t-rmset" data-ei="${ei}" data-si="${si}">×</button>
+            </div>`).join("")}
+          <button class="btn btn-g sm" data-act="t-addset" data-ei="${ei}">+ serija</button>
+        </div>`;
+      }).join("")}
+      <button class="btn btn-p wide" style="margin-top:6px" data-act="t-finish">Završi trening</button>
+    </div>`;
+  }
   html += `
     <div class="row spread mb10" style="margin-top:4px">
       <span class="eyebrow">Predlošci</span>
@@ -2143,6 +2176,39 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
 
+  if (a === "t-start") {
+    const existing = activeSession(S.training);
+    if (existing) { S.sheet = { type: "t-resume", pending: { templateId: el.dataset.id } }; renderSheet(); return; }
+    startSession(el.dataset.id); return;
+  }
+  if (a === "t-addset") {
+    const ei = parseInt(el.dataset.ei, 10);
+    const active = activeSession(S.training);
+    const sets = active.log.performedExercises[ei].sets;
+    const last = sets[sets.length - 1] || { reps: 5, weight: 0 };
+    sets.push({ reps: last.reps, weight: last.weight });
+    saveTraining(); render(); return;
+  }
+  if (a === "t-rmset") {
+    const active = activeSession(S.training);
+    active.log.performedExercises[parseInt(el.dataset.ei, 10)].sets.splice(parseInt(el.dataset.si, 10), 1);
+    saveTraining(); render(); return;
+  }
+  if (a === "t-finish") {
+    collectActiveSets();
+    const active = activeSession(S.training);
+    active.status = "completed";
+    active.completedAt = new Date().toISOString();
+    if (saveTraining()) toast("Trening spremljen");
+    S.trainingTab = "hist"; S.sheet = null; render(); return;
+  }
+  if (a === "t-abandon") {
+    collectActiveSets();
+    S.sheet = { type: "t-leave", pending: { abandon: true } };
+    renderSheet(); return;
+  }
+  if (a === "t-resume-open") { S.trainingTab = "log"; render(); return; }
+
   if (a === "t-new-tpl") { S.sheet = { type: "t-template", tpl: { title: "", exercises: [] } }; renderSheet(); return; }
   if (a === "t-edit-tpl") {
     const t = S.training.templates.find((x) => x.id === el.dataset.id);
@@ -2175,6 +2241,39 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
 });
+
+/* ---------- aktivna sesija ---------- */
+
+function startSession(templateId) {
+  const tpl = S.training.templates.find((t) => t.id === templateId);
+  if (!tpl) { toast("Predložak ne postoji"); return; }
+  const snap = cloneTemplate(tpl);
+  const session = {
+    id: uid("ses"), date: dateKey(S.day || new Date()), templateId: tpl.id,
+    status: "active", startedAt: Date.now(), snapshot: snap,
+    log: { performedExercises: snap.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) },
+  };
+  S.training.sessions.push(session);
+  saveTraining();
+  S.trainingTab = "log";
+  if (typeof registerLeaveGuard === "function") registerLeaveGuard(); // Task 8
+  render();
+}
+
+/* Pročitaj upisane serije iz DOM-a u aktivnu sesiju (obrasci se ne re-renderiraju). */
+function collectActiveSets() {
+  const active = activeSession(S.training);
+  if (!active) return;
+  document.querySelectorAll('[data-act="t-set-reps"]').forEach((inp) => {
+    const ei = parseInt(inp.dataset.ei, 10), si = parseInt(inp.dataset.si, 10);
+    if (active.log.performedExercises[ei] && active.log.performedExercises[ei].sets[si]) active.log.performedExercises[ei].sets[si].reps = num(inp.value, 0);
+  });
+  document.querySelectorAll('[data-act="t-set-wt"]').forEach((inp) => {
+    const ei = parseInt(inp.dataset.ei, 10), si = parseInt(inp.dataset.si, 10);
+    if (active.log.performedExercises[ei] && active.log.performedExercises[ei].sets[si]) active.log.performedExercises[ei].sets[si].weight = num(inp.value, 0);
+  });
+  saveTraining();
+}
 
 /* ---------- registracija ---------- */
 
