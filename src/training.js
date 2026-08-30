@@ -296,6 +296,7 @@ document.addEventListener("click", (e) => {
     startSession(el.dataset.id); return;
   }
   if (a === "t-addset") {
+    collectActiveSets();
     const ei = parseInt(el.dataset.ei, 10);
     const active = activeSession(S.training);
     const sets = active.log.performedExercises[ei].sets;
@@ -304,6 +305,7 @@ document.addEventListener("click", (e) => {
     saveTraining(); render(); return;
   }
   if (a === "t-rmset") {
+    collectActiveSets();
     const active = activeSession(S.training);
     active.log.performedExercises[parseInt(el.dataset.ei, 10)].sets.splice(parseInt(el.dataset.si, 10), 1);
     saveTraining(); render(); return;
