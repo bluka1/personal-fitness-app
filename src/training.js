@@ -150,6 +150,111 @@ function sheetTemplate(tpl) {
   </div>`;
 }
 
+/* ---------- Kalendar ---------- */
+
+function paneKalendar() {
+  if (!S.calMonth) { const d = new Date(); S.calMonth = { y: d.getFullYear(), m: d.getMonth() }; }
+  const { y, m } = S.calMonth;
+  const first = new Date(y, m, 1);
+  const startPad = (first.getDay() + 6) % 7; // ponedjeljak = 0
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const byDate = {};
+  S.training.sessions.forEach((s) => { (byDate[s.date] = byDate[s.date] || []).push(s); });
+  const todayKey = dateKey(new Date());
+
+  let cells = "";
+  for (let i = 0; i < startPad; i++) cells += `<div></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = y + "-" + String(m + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+    const has = byDate[key] || [];
+    const done = has.some((s) => s.status === "completed");
+    const planned = has.some((s) => s.status === "planned");
+    const dot = done ? "var(--sage)" : planned ? "var(--amber)" : "transparent";
+    cells += `
+      <button class="tcell${key === todayKey ? " today" : ""}" data-act="t-cal-day" data-date="${key}">
+        <span class="num">${d}</span>
+        <span class="tdot" style="background:${dot}"></span>
+      </button>`;
+  }
+
+  return `
+    <div class="row spread mb10" style="margin-top:4px">
+      <button class="btn btn-g sq" data-act="t-cal-prev">‹</button>
+      <span class="dsp" style="font-weight:700">${MJ[m]} ${y}</span>
+      <button class="btn btn-g sq" data-act="t-cal-next">›</button>
+    </div>
+    <div class="tgrid-head">${["P", "U", "S", "Č", "P", "S", "N"].map((x) => `<div class="eyebrow center">${x}</div>`).join("")}</div>
+    <div class="tgrid">${cells}</div>`;
+}
+
+/* ---------- List: raspored dana ---------- */
+
+function sheetSchedule(date) {
+  const d = new Date(date);
+  const sess = S.training.sessions.filter((s) => s.date === date);
+  const opts = S.training.templates.map((t) => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12">
+      <h2>${prettyDate(d)}</h2>
+      <button class="btn btn-g sm" data-act="close">Zatvori</button>
+    </div>
+    ${sess.length ? sess.map((s) => `
+      <div class="card p12 mb8">
+        <div class="row spread">
+          <div>
+            <div style="font-size:14px;font-weight:600">${esc(s.snapshot ? s.snapshot.title : (S.training.templates.find((t) => t.id === s.templateId) || {}).title || "Trening")}</div>
+            <div class="num sub2">${s.status === "completed" ? "Završeno" : s.status === "skipped" ? "Preskočeno" : "Planirano"}</div>
+          </div>
+          ${s.status === "planned" ? `<div class="row" style="gap:6px">
+            <button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">Pokreni</button>
+            <button class="btn btn-g sm" data-act="t-cal-skip" data-id="${s.id}">Preskoči</button>
+          </div>` : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">Otvori</button>`}
+        </div>
+      </div>`).join("") : `<p class="note">Ništa planirano za ovaj dan.</p>`}
+    <div class="eyebrow mb8" style="margin-top:8px">Zakaži predložak</div>
+    <div class="row" style="gap:8px">
+      <select id="tsch_tpl" style="flex:1;min-width:0">${opts}</select>
+      <button class="btn btn-p" data-act="t-schedule-do" data-date="${date}">Zakaži</button>
+    </div>`;
+}
+
+/* ---------- Povijest ---------- */
+
+function panePovijest() {
+  const done = S.training.sessions.filter((s) => s.status === "completed").sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
+  if (!done.length) return `<p class="note" style="margin-top:8px">Još nema završenih treninga.</p>`;
+  let html = `<div style="margin-top:4px">`;
+  done.forEach((s) => {
+    html += `
+    <button class="card row-btn p12 mb8" data-act="t-open-session" data-id="${s.id}">
+      <div class="row spread">
+        <span style="font-size:14.5px;font-weight:500">${esc(s.snapshot ? s.snapshot.title : "Trening")}</span>
+        <span class="num sub" style="margin:0">${esc(s.date)}</span>
+      </div>
+      <div class="num sub2">${sessionSetCount(s)} serija · volumen ${Math.round(sessionVolume(s))} kg</div>
+    </button>`;
+  });
+  return html + "</div>";
+}
+
+function sheetSession(s) {
+  const snap = s.snapshot || { exercises: [] };
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb4" style="align-items:flex-start">
+      <h2 style="font-size:19px">${esc(snap.title || "Trening")}</h2>
+      <button class="btn btn-g sm" data-act="close">Zatvori</button>
+    </div>
+    <div class="eyebrow mb14">${esc(s.date)} · ${sessionSetCount(s)} serija · volumen ${Math.round(sessionVolume(s))} kg</div>
+    ${(s.log ? s.log.performedExercises : []).map((pe) => `
+      <div class="mb14">
+        <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">${esc(exName(pe.exerciseId))}</div>
+        ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">Serija ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
+      </div>`).join("")}
+  </div>`;
+}
+
 /* ---------- čuvar aktivnog treninga ---------- */
 
 let _beforeUnload = null;
@@ -437,6 +542,35 @@ document.addEventListener("click", (e) => {
     if (saveTraining()) toast("Obrisano");
     S.sheet = null; render(); return;
   }
+
+  // --- Kalendar i povijest ---
+  if (a === "t-cal-prev") { let { y, m } = S.calMonth; m--; if (m < 0) { m = 11; y--; } S.calMonth = { y, m }; render(); return; }
+  if (a === "t-cal-next") { let { y, m } = S.calMonth; m++; if (m > 11) { m = 0; y++; } S.calMonth = { y, m }; render(); return; }
+  if (a === "t-cal-day") { S.sheet = { type: "t-schedule", date: el.dataset.date }; renderSheet(); return; }
+  if (a === "t-schedule-do") {
+    const id = $("#tsch_tpl").value;
+    const tpl = S.training.templates.find((t) => t.id === id);
+    if (!tpl) { toast("Nema predloška"); return; }
+    S.training.sessions.push({ id: uid("ses"), date: el.dataset.date, templateId: id, status: "planned", snapshot: cloneTemplate(tpl) });
+    if (saveTraining()) toast("Zakazano");
+    S.sheet = null; render(); return;
+  }
+  if (a === "t-cal-start") {
+    const existing = activeSession(S.training);
+    if (existing) { S.sheet = { type: "t-resume", pending: {} }; renderSheet(); return; }
+    const s = S.training.sessions.find((x) => x.id === el.dataset.id);
+    // Pretvori planiranu sesiju u aktivnu koristeći njezin snapshot.
+    s.status = "active"; s.startedAt = Date.now();
+    s.log = { performedExercises: s.snapshot.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) })) };
+    saveTraining(); registerLeaveGuard();
+    S.tab = "trening"; S.trainingTab = "log"; S.sheet = null; render(); return;
+  }
+  if (a === "t-cal-skip") {
+    const s = S.training.sessions.find((x) => x.id === el.dataset.id);
+    s.status = "skipped"; if (saveTraining()) toast("Preskočeno");
+    S.sheet = null; render(); return;
+  }
+  if (a === "t-open-session") { S.sheet = { type: "t-session", session: S.training.sessions.find((x) => x.id === el.dataset.id) }; renderSheet(); return; }
 });
 
 /* ---------- aktivna sesija ---------- */
