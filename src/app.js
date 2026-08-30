@@ -658,7 +658,7 @@ async function sbRest(method, query, body) {
 function currentPayload() {
   return {
     ingredients: S.ingredients, recipes: S.recipes,
-    settings: S.settings, logs: S.logs, updatedAt: localStamp(),
+    settings: S.settings, logs: S.logs, training: S.training || null, updatedAt: localStamp(),
   };
 }
 
@@ -667,6 +667,7 @@ function adoptPayload(p) {
   if (p.recipes) S.recipes = p.recipes;
   if (p.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings);
   if (p.logs) S.logs = p.logs;
+  if (p.training) { S.training = p.training; writeLS("obroci_training", S.training); }
   writeLS(K_DATA, { ingredients: S.ingredients, recipes: S.recipes, settings: S.settings });
   writeLS(K_LOGS, S.logs);
   localStorage.setItem(K_STAMP, String(p.updatedAt || Date.now()));
@@ -990,8 +991,8 @@ function sheetImport(kind) {
 /* ---------- render ---------- */
 
 function render() {
-  const views = { danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise };
-  $("#main").innerHTML = views[S.tab]();
+  const views = Object.assign({ danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise }, S.extraViews || {});
+  $("#main").innerHTML = (views[S.tab] || viewDanas)();
   document.querySelectorAll("#nav button").forEach((b) => {
     b.classList.toggle("on", b.dataset.tab === S.tab);
   });
@@ -1005,7 +1006,8 @@ function renderSheet() {
   if (!S.sheet) { stopCam(); host.innerHTML = ""; host.style.display = "none"; return; }
   const s = S.sheet;
   let inner = "";
-  if (s.type === "picker") inner = sheetPicker(s.slot);
+  if (s.type && s.type.indexOf("t-") === 0 && typeof trainingSheet === "function") inner = trainingSheet(s);
+  else if (s.type === "picker") inner = sheetPicker(s.slot);
   else if (s.type === "recipe-view") inner = sheetRecipeView(s.recipe);
   else if (s.type === "recipe-edit") inner = sheetRecipeEdit(s.recipe);
   else if (s.type === "ingredient") inner = sheetIngredient(s.ing);
@@ -1024,7 +1026,10 @@ const srvMap = {};
 
 document.addEventListener("click", (e) => {
   const nav = e.target.closest("#nav button");
-  if (nav) { S.tab = nav.dataset.tab; S.sheet = null; render(); return; }
+  if (nav) {
+    if (S.guardLeave && S.guardLeave("tab:" + nav.dataset.tab)) return;
+    S.tab = nav.dataset.tab; S.sheet = null; render(); return;
+  }
 
   const host = $("#sheet");
   if (S.sheet && e.target === host) { S.sheet = null; renderSheet(); return; }
@@ -1384,6 +1389,7 @@ consumeAuthHash().then((came) => {
   if (came) { render(); toast("Prijavljen"); }
   if (SYNC.cfg && SYNC.cfg.access_token) syncNow();
 });
+if (typeof window !== "undefined" && typeof window.onTrainingReady === "function") window.onTrainingReady();
 window.addEventListener("online", () => syncNow());
 
 if ("serviceWorker" in navigator) {
