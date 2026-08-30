@@ -21,8 +21,10 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
-      - name: Build index.html from src/
+      - name: Build live app
         run: python3 build.py
+      - name: Build training preview
+        run: python3 build.py --preview
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
