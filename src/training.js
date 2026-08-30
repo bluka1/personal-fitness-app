@@ -150,6 +150,60 @@ function sheetTemplate(tpl) {
   </div>`;
 }
 
+/* ---------- čuvar aktivnog treninga ---------- */
+
+let _beforeUnload = null;
+
+function registerLeaveGuard() {
+  if (_beforeUnload) return;
+  _beforeUnload = (e) => { e.preventDefault(); e.returnValue = ""; return ""; };
+  window.addEventListener("beforeunload", _beforeUnload);
+}
+function unregisterLeaveGuard() {
+  if (_beforeUnload) { window.removeEventListener("beforeunload", _beforeUnload); _beforeUnload = null; }
+}
+
+/* Vrati true ako navigaciju treba blokirati (i prikaži upozorenje).
+   Blokiramo samo kad je trening u tijeku i gledamo njegov log. */
+S_guardInstall();
+function S_guardInstall() {
+  S.guardLeave = function (dest) {
+    const active = activeSession(S.training);
+    const inLog = S.tab === "trening" && S.trainingTab === "log";
+    if (!active || !inLog) return false;
+    if (dest === "ttab:log" || dest === "tab:trening") return false; // ostajemo u istom
+    S.sheet = { type: "t-leave", pending: { dest: dest } };
+    renderSheet();
+    return true;
+  };
+}
+
+/* ---------- listovi za čuvara i nastavak ---------- */
+
+function sheetLeave() {
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12"><h2>Trening u tijeku</h2></div>
+    <p class="note">Trening još nije spremljen. Ako izađeš, ostaje prekinut i možeš ga kasnije nastaviti.</p>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <button class="btn btn-p grow" data-act="t-leave-stay">Ostani</button>
+      <button class="btn btn-g grow" data-act="t-leave-go">Izađi</button>
+    </div>
+  </div>`;
+}
+
+function sheetResume(pending) {
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12"><h2>Prekinuti trening</h2></div>
+    <p class="note">Imaš trening koji nije završen. Želiš li ga nastaviti ili započeti novi? Novi briše prekinuti.</p>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <button class="btn btn-p grow" data-act="t-resume-continue">Nastavi</button>
+      <button class="btn btn-g grow" data-act="t-resume-new" data-id="${pending && pending.templateId ? esc(pending.templateId) : ""}">Započni novi</button>
+    </div>
+  </div>`;
+}
+
 /* ---------- listovi (delegirano iz renderSheet) ---------- */
 
 function trainingSheet(s) {
@@ -315,9 +369,36 @@ document.addEventListener("click", (e) => {
     const active = activeSession(S.training);
     active.status = "completed";
     active.completedAt = new Date().toISOString();
+    unregisterLeaveGuard();
     if (saveTraining()) toast("Trening spremljen");
     S.trainingTab = "hist"; S.sheet = null; render(); return;
   }
+  if (a === "t-leave-stay") { S.sheet = null; renderSheet(); return; }
+  if (a === "t-leave-go") {
+    const pend = S.sheet.pending || {};
+    S.sheet = null;
+    if (pend.abandon) {
+      // Odustajanje: obriši prekinutu aktivnu sesiju.
+      const act = activeSession(S.training);
+      if (act) S.training.sessions = S.training.sessions.filter((s) => s.id !== act.id);
+      unregisterLeaveGuard(); saveTraining(); render(); return;
+    }
+    const dest = pend.dest || "";
+    if (dest.indexOf("ttab:") === 0) { S.trainingTab = dest.slice(5); render(); return; }
+    if (dest.indexOf("tab:") === 0) { S.tab = dest.slice(4); render(); return; }
+    render(); return;
+  }
+  if (a === "t-resume-continue") { S.sheet = null; S.tab = "trening"; S.trainingTab = "log"; render(); return; }
+  if (a === "t-resume-new") {
+    const tplId = (S.sheet && S.sheet.pending && S.sheet.pending.templateId) || el.dataset.id || "";
+    const act = activeSession(S.training);
+    if (act) S.training.sessions = S.training.sessions.filter((s) => s.id !== act.id);
+    saveTraining();
+    S.sheet = null;
+    if (!tplId) { render(); return; } // došli s kalendara bez predloška — samo odbaci
+    startSession(tplId); return;
+  }
+
   if (a === "t-abandon") {
     collectActiveSets();
     S.sheet = { type: "t-leave", pending: { abandon: true } };
@@ -372,7 +453,7 @@ function startSession(templateId) {
   S.training.sessions.push(session);
   saveTraining();
   S.trainingTab = "log";
-  if (typeof registerLeaveGuard === "function") registerLeaveGuard(); // Task 8
+  registerLeaveGuard();
   render();
 }
 
@@ -406,4 +487,5 @@ window.onTrainingReady = function () {
     const vise = nav.querySelector('[data-tab="vise"]');
     nav.insertBefore(btn, vise);
   }
+  if (activeSession(S.training)) registerLeaveGuard();
 };
