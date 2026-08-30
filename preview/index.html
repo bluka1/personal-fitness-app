@@ -2515,6 +2515,12 @@ window.onTrainingReady = function () {
   if (activeSession(S.training)) registerLeaveGuard();
 };
 
+/* app.js pokreće start (uklj. onTrainingReady hook) PRIJE nego što je ovaj
+   modul učitan, pa je tada window.onTrainingReady još bio undefined. Ovaj se
+   modul inlina iza app.js i izvršava nakon što je start gotov (nav je već u
+   DOM-u), pa registraciju pokrećemo sami — jednom, ovdje. */
+window.onTrainingReady();
+
 </script>
 </body>
 </html>
