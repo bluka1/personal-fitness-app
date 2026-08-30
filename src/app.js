@@ -1002,6 +1002,8 @@ function render() {
   renderSheet();
   if (S.tab === "vise") updateStorageInfo();
   window.scrollTo(0, 0);
+  /* Trening modul (ako je učitan) osvježava štopericu nakon rendera. */
+  if (typeof S.afterRender === "function") S.afterRender();
 }
 
 function renderSheet() {

@@ -1531,6 +1531,8 @@ function render() {
   renderSheet();
   if (S.tab === "vise") updateStorageInfo();
   window.scrollTo(0, 0);
+  /* Trening modul (ako je učitan) osvježava štopericu nakon rendera. */
+  if (typeof S.afterRender === "function") S.afterRender();
 }
 
 function renderSheet() {
@@ -2266,7 +2268,10 @@ function paneLog(active) {
           <div class="eyebrow" style="color:var(--amber)">U tijeku</div>
           <div style="font-size:16px;font-weight:700;margin-top:2px">${esc(snap.title)}</div>
         </div>
-        <button class="btn btn-g sm" data-act="t-abandon">Odustani</button>
+        <div class="center">
+          <div class="num" id="t-timer" style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">${fmtDur(Date.now() - (active.startedAt || Date.now()))}</div>
+          <button class="btn btn-g sm" style="margin-top:6px" data-act="t-abandon">Odustani</button>
+        </div>
       </div>
       ${snap.exercises.map((row, ei) => {
         const pe = active.log.performedExercises[ei];
@@ -2293,23 +2298,26 @@ function paneLog(active) {
       <button class="btn btn-p wide" style="margin-top:6px" data-act="t-finish">Završi trening</button>
     </div>`;
   }
-  html += `
+  // Dok trening traje, ne nudimo predloške (unos/pokretanje drugog treninga).
+  if (!active) {
+    html += `
     <div class="row spread mb10" style="margin-top:4px">
       <span class="eyebrow">Predlošci</span>
       <button class="btn btn-p sm" data-act="t-new-tpl">Novi predložak</button>
     </div>`;
-  if (!S.training.templates.length) html += `<p class="note">Nema predložaka. Napravi prvi pa ga pokreni.</p>`;
-  S.training.templates.forEach((t) => {
-    html += `
-    <div class="card p12 mb8">
-      <div style="font-size:14.5px;font-weight:500">${esc(t.title)}</div>
-      <div class="num sub2" style="margin-bottom:10px">${t.exercises.length} vježbi · ${t.exercises.reduce((a, x) => a + (x.targetSets ? x.targetSets.length : 0), 0)} serija</div>
-      <div class="row" style="gap:8px">
-        <button class="btn btn-p grow" data-act="t-start" data-id="${t.id}">Pokreni</button>
-        <button class="btn btn-g" data-act="t-edit-tpl" data-id="${t.id}">Uredi</button>
-      </div>
-    </div>`;
-  });
+    if (!S.training.templates.length) html += `<p class="note">Nema predložaka. Napravi prvi pa ga pokreni.</p>`;
+    S.training.templates.forEach((t) => {
+      html += `
+      <div class="card p12 mb8">
+        <div style="font-size:14.5px;font-weight:500">${esc(t.title)}</div>
+        <div class="num sub2" style="margin-bottom:10px">${t.exercises.length} vježbi · ${t.exercises.reduce((a, x) => a + (x.targetSets ? x.targetSets.length : 0), 0)} serija</div>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-p grow" data-act="t-start" data-id="${t.id}">Pokreni</button>
+          <button class="btn btn-g" data-act="t-edit-tpl" data-id="${t.id}">Uredi</button>
+        </div>
+      </div>`;
+    });
+  }
   return html;
 }
 
@@ -2548,6 +2556,30 @@ function collectActiveSets() {
   saveTraining();
 }
 
+/* ---------- štoperica aktivnog treninga ---------- */
+
+let _timerInt = null;
+
+function fmtDur(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? h + ":" + pad(m) + ":" + pad(ss) : pad(m) + ":" + pad(ss);
+}
+
+/* Poziva se nakon svakog rendera (S.afterRender). Ako je #t-timer u DOM-u
+   (aktivni trening u log prikazu), pokreni sekundno osvježavanje; inače stani. */
+function ensureTimer() {
+  if (_timerInt) { clearInterval(_timerInt); _timerInt = null; }
+  const paint = () => {
+    const el = document.getElementById("t-timer");
+    const active = activeSession(S.training);
+    if (!el || !active || !active.startedAt) { if (_timerInt) { clearInterval(_timerInt); _timerInt = null; } return; }
+    el.textContent = fmtDur(Date.now() - active.startedAt);
+  };
+  if (document.getElementById("t-timer")) { paint(); _timerInt = setInterval(paint, 1000); }
+}
+
 /* ---------- odsjek na "Danas" (dodaje ga app.js kroz spojnicu) ---------- */
 
 /* Trening zakazan za prikazani dan (S.day). Ako nema — poruka. */
@@ -2583,6 +2615,7 @@ window.onTrainingReady = function () {
   loadTraining();
   S.extraViews = S.extraViews || {};
   S.extraViews.trening = viewTrening;
+  S.afterRender = ensureTimer; // štoperica se pali kad je #t-timer u DOM-u
   // Ubaci gumb u donju navigaciju (prije "Više").
   const nav = document.getElementById("nav");
   if (nav && !nav.querySelector('[data-tab="trening"]')) {
