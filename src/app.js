@@ -490,12 +490,13 @@ function sheetRecipeView(r) {
       <div class="eyebrow">Po porciji</div>
       <div class="num" style="font-size:14px;margin-top:5px">${r0(m.kcal)} kcal · ${r1(m.p)} g P · ${r1(m.c)} g UH · ${r1(m.f)} g M</div>
     </div>
+    ${r.mode === "items" && (r.items || []).some((it) => !S.ingredients.find((x) => x.id === it.ing)) ? `<p class="note" style="color:var(--coral)">Neke namirnice nisu u bazi (crveno) pa se ne računaju. Otvori Uredi da to popraviš.</p>` : ""}
     ${r.mode === "items" && (r.items || []).length ? `
       <div class="mb18">
         <div class="eyebrow mb8">Sastojci</div>
         ${r.items.map((it) => {
     const ing = S.ingredients.find((x) => x.id === it.ing);
-    return `<div class="row spread ingrow"><span style="font-size:14px">${esc(ing ? ing.name : "nepoznata namirnica")}</span><span class="num sub">${it.g} g</span></div>`;
+    return `<div class="row spread ingrow"><span style="font-size:14px${ing ? "" : ";color:var(--coral)"}">${esc(ing ? ing.name : (it.name ? it.name + " — nije u bazi" : "nepoznata namirnica"))}</span><span class="num sub">${it.g} g</span></div>`;
   }).join("")}
       </div>` : ((r.ing || []).length ? `
       <div class="mb18">
@@ -549,12 +550,13 @@ function sheetRecipeEdit(r) {
         ${(r.items || []).map((it, i) => {
         const ing = S.ingredients.find((x) => x.id === it.ing);
         return `<div class="row spread ingrow">
-            <span class="ellip" style="font-size:14px;flex:1">${esc(ing ? ing.name : "nepoznata namirnica")}</span>
+            <span class="ellip" style="font-size:14px;flex:1${ing ? "" : ";color:var(--coral)"}">${esc(ing ? ing.name : (it.name ? it.name + " — nije u bazi" : "nepoznata namirnica"))}</span>
             <span class="num sub" style="margin:0 10px">${it.g} g</span>
             <button class="x" data-act="rm-item" data-i="${i}">×</button>
           </div>`;
       }).join("")}
       </div>
+      ${(r.items || []).some((it) => !S.ingredients.find((x) => x.id === it.ing)) ? `<p class="note" style="color:var(--coral)">Crveno označene namirnice nisu u bazi pa ne ulaze u izračun (0 kcal). Dodaj ih u Namirnice i odaberi ispod, ili prebaci recept na „Izravno” i upiši makrose ručno.</p>` : ""}
       <div class="row" style="gap:8px;margin-bottom:14px">
         <select id="it_ing" style="flex:1;min-width:0">
           ${S.ingredients.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join("")}
