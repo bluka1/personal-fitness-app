@@ -1998,6 +1998,44 @@ function sheetExercise(x) {
   </div>`;
 }
 
+function sheetTemplate(tpl) {
+  const exOptions = S.training.exercises.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join("");
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb14">
+      <h2>Predložak</h2>
+      <button class="btn btn-g sm" data-act="close">Odustani</button>
+    </div>
+    <label class="eyebrow">Naziv</label>
+    <input id="tt_title" value="${esc(tpl.title || '')}" placeholder="npr. Gornji dio A" style="margin:6px 0 14px">
+    <div class="eyebrow mb8">Vježbe</div>
+    <div class="mb10">
+      ${tpl.exercises.map((row, i) => `
+        <div class="card p12 mb8" style="background:var(--sf2)">
+          <div class="row spread">
+            <span class="ellip" style="flex:1;font-size:14px">${esc(exName(row.exerciseId))}</span>
+            <button class="x" data-act="t-tpl-rm" data-i="${i}">×</button>
+          </div>
+          <div class="num sub2" style="margin-top:4px">${row.targetSets.length} × ${row.targetSets[0] ? row.targetSets[0].reps + ' pon · ' + row.targetSets[0].weight + ' kg' : '—'} · pauza ${row.restSeconds}s</div>
+          <div class="row" style="gap:8px;margin-top:8px">
+            <div style="flex:1"><label class="eyebrow">Serije</label><input inputmode="numeric" id="ts_sets_${i}" value="${row.targetSets.length}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">Pon.</label><input inputmode="numeric" id="ts_reps_${i}" value="${row.targetSets[0] ? row.targetSets[0].reps : 5}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">Kg</label><input inputmode="decimal" id="ts_wt_${i}" value="${row.targetSets[0] ? row.targetSets[0].weight : 0}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">Pauza s</label><input inputmode="numeric" id="ts_rest_${i}" value="${row.restSeconds}" class="mini"></div>
+          </div>
+        </div>`).join("")}
+    </div>
+    <div class="row" style="gap:8px;margin-bottom:16px">
+      <select id="tt_add_ex" style="flex:1;min-width:0">${exOptions}</select>
+      <button class="btn" data-act="t-tpl-add">+</button>
+    </div>
+    <div class="row" style="gap:8px">
+      <button class="btn btn-p grow" data-act="t-save-tpl">Spremi</button>
+      ${tpl._editing ? '<button class="btn btn-g" data-act="t-del-tpl">Obriši</button>' : ""}
+    </div>
+  </div>`;
+}
+
 /* ---------- listovi (delegirano iz renderSheet) ---------- */
 
 function trainingSheet(s) {
@@ -2008,6 +2046,49 @@ function trainingSheet(s) {
   if (s.type === "t-resume") return sheetResume(s.pending);
   if (s.type === "t-session") return sheetSession(s.session);
   return "";
+}
+
+/* ---------- Predlošci ---------- */
+
+function paneLog(active) {
+  let html = "";
+  // (Task 7 ubacuje ovdje "danas" i aktivni trening.)
+  html += `
+    <div class="row spread mb10" style="margin-top:4px">
+      <span class="eyebrow">Predlošci</span>
+      <button class="btn btn-p sm" data-act="t-new-tpl">Novi predložak</button>
+    </div>`;
+  if (!S.training.templates.length) html += `<p class="note">Nema predložaka. Napravi prvi pa ga pokreni.</p>`;
+  S.training.templates.forEach((t) => {
+    html += `
+    <div class="card p12 mb8">
+      <div style="font-size:14.5px;font-weight:500">${esc(t.title)}</div>
+      <div class="num sub2" style="margin-bottom:10px">${t.exercises.length} vježbi · ${t.exercises.reduce((a, x) => a + (x.targetSets ? x.targetSets.length : 0), 0)} serija</div>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-p grow" data-act="t-start" data-id="${t.id}">Pokreni</button>
+        <button class="btn btn-g" data-act="t-edit-tpl" data-id="${t.id}">Uredi</button>
+      </div>
+    </div>`;
+  });
+  return html;
+}
+
+/* Pokupi vrijednosti iz obrasca predloška prije ponovnog iscrtavanja. */
+function collectTemplate() {
+  const t = S.sheet && S.sheet.tpl;
+  if (!t) return;
+  if ($("#tt_title")) t.title = $("#tt_title").value;
+  t.exercises.forEach((row, i) => {
+    const nSets = Math.max(1, parseInt(($("#ts_sets_" + i) || {}).value || row.targetSets.length, 10) || 1);
+    const reps = num(($("#ts_reps_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].reps : 5);
+    const wt = num(($("#ts_wt_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].weight : 0);
+    row.restSeconds = Math.max(0, parseInt(($("#ts_rest_" + i) || {}).value || row.restSeconds, 10) || 0);
+    row.targetSets = Array.from({ length: nSets }, () => ({ reps: reps, weight: wt }));
+  });
+}
+
+function stripMeta(t) {
+  return { id: t.id, title: t.title, exercises: t.exercises.map((r) => ({ exerciseId: r.exerciseId, order: r.order, restSeconds: r.restSeconds, targetSets: r.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) };
 }
 
 /* ---------- radnje (vlastiti listener; app.js ignorira t-* akcije) ---------- */
@@ -2058,6 +2139,38 @@ document.addEventListener("click", (e) => {
   }
   if (a === "t-del-ex") {
     S.training.exercises = S.training.exercises.filter((y) => y.id !== S.sheet.ex.id);
+    if (saveTraining()) toast("Obrisano");
+    S.sheet = null; render(); return;
+  }
+
+  if (a === "t-new-tpl") { S.sheet = { type: "t-template", tpl: { title: "", exercises: [] } }; renderSheet(); return; }
+  if (a === "t-edit-tpl") {
+    const t = S.training.templates.find((x) => x.id === el.dataset.id);
+    S.sheet = { type: "t-template", tpl: Object.assign({ _editing: true }, cloneTemplate(t)) };
+    renderSheet(); return;
+  }
+  if (a === "t-tpl-add") {
+    collectTemplate();
+    const id = $("#tt_add_ex").value;
+    const t = S.sheet.tpl;
+    t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 90, targetSets: [ { reps: 5, weight: 0 }, { reps: 5, weight: 0 }, { reps: 5, weight: 0 } ] });
+    renderSheet(); return;
+  }
+  if (a === "t-tpl-rm") { collectTemplate(); S.sheet.tpl.exercises.splice(parseInt(el.dataset.i, 10), 1); renderSheet(); return; }
+  if (a === "t-save-tpl") {
+    collectTemplate();
+    const t = S.sheet.tpl;
+    t.title = ($("#tt_title").value || "").trim();
+    if (!t.title) { toast("Predložak treba naziv"); return; }
+    if (!t.exercises.length) { toast("Dodaj barem jednu vježbu"); return; }
+    t.exercises.forEach((r, i) => (r.order = i));
+    if (!t.id) { t.id = uid("tpl"); S.training.templates.push(stripMeta(t)); }
+    else { const i = S.training.templates.findIndex((x) => x.id === t.id); S.training.templates[i] = stripMeta(t); }
+    if (saveTraining()) toast("Spremljeno");
+    S.sheet = null; render(); return;
+  }
+  if (a === "t-del-tpl") {
+    S.training.templates = S.training.templates.filter((x) => x.id !== S.sheet.tpl.id);
     if (saveTraining()) toast("Obrisano");
     S.sheet = null; render(); return;
   }
