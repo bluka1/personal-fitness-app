@@ -556,9 +556,9 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "t-cal-start") {
-    const existing = activeSession(S.training);
-    if (existing) { S.sheet = { type: "t-resume", pending: {} }; renderSheet(); return; }
     const s = S.training.sessions.find((x) => x.id === el.dataset.id);
+    const existing = activeSession(S.training);
+    if (existing) { S.sheet = { type: "t-resume", pending: { templateId: s ? s.templateId : "" } }; renderSheet(); return; }
     // Pretvori planiranu sesiju u aktivnu koristeći njezin snapshot.
     s.status = "active"; s.startedAt = Date.now();
     s.log = { performedExercises: s.snapshot.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) })) };
