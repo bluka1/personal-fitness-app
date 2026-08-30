@@ -266,6 +266,9 @@ function viewDanas() {
     </div>`;
   });
 
+  /* Trening modul (ako je učitan) dodaje današnji raspored ispod obroka. */
+  if (typeof trainingDanasSection === "function") html += trainingDanasSection();
+
   return html + "</div>";
 }
 
@@ -487,12 +490,13 @@ function sheetRecipeView(r) {
       <div class="eyebrow">Po porciji</div>
       <div class="num" style="font-size:14px;margin-top:5px">${r0(m.kcal)} kcal · ${r1(m.p)} g P · ${r1(m.c)} g UH · ${r1(m.f)} g M</div>
     </div>
+    ${r.mode === "items" && (r.items || []).some((it) => !S.ingredients.find((x) => x.id === it.ing)) ? `<p class="note" style="color:var(--coral)">Neke namirnice nisu u bazi (crveno) pa se ne računaju. Otvori Uredi da to popraviš.</p>` : ""}
     ${r.mode === "items" && (r.items || []).length ? `
       <div class="mb18">
         <div class="eyebrow mb8">Sastojci</div>
         ${r.items.map((it) => {
     const ing = S.ingredients.find((x) => x.id === it.ing);
-    return `<div class="row spread ingrow"><span style="font-size:14px">${esc(ing ? ing.name : "nepoznata namirnica")}</span><span class="num sub">${it.g} g</span></div>`;
+    return `<div class="row spread ingrow"><span style="font-size:14px${ing ? "" : ";color:var(--coral)"}">${esc(ing ? ing.name : (it.name ? it.name + " — nije u bazi" : "nepoznata namirnica"))}</span><span class="num sub">${it.g} g</span></div>`;
   }).join("")}
       </div>` : ((r.ing || []).length ? `
       <div class="mb18">
@@ -546,12 +550,13 @@ function sheetRecipeEdit(r) {
         ${(r.items || []).map((it, i) => {
         const ing = S.ingredients.find((x) => x.id === it.ing);
         return `<div class="row spread ingrow">
-            <span class="ellip" style="font-size:14px;flex:1">${esc(ing ? ing.name : "nepoznata namirnica")}</span>
+            <span class="ellip" style="font-size:14px;flex:1${ing ? "" : ";color:var(--coral)"}">${esc(ing ? ing.name : (it.name ? it.name + " — nije u bazi" : "nepoznata namirnica"))}</span>
             <span class="num sub" style="margin:0 10px">${it.g} g</span>
             <button class="x" data-act="rm-item" data-i="${i}">×</button>
           </div>`;
       }).join("")}
       </div>
+      ${(r.items || []).some((it) => !S.ingredients.find((x) => x.id === it.ing)) ? `<p class="note" style="color:var(--coral)">Crveno označene namirnice nisu u bazi pa ne ulaze u izračun (0 kcal). Dodaj ih u Namirnice i odaberi ispod, ili prebaci recept na „Izravno” i upiši makrose ručno.</p>` : ""}
       <div class="row" style="gap:8px;margin-bottom:14px">
         <select id="it_ing" style="flex:1;min-width:0">
           ${S.ingredients.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join("")}
@@ -658,7 +663,7 @@ async function sbRest(method, query, body) {
 function currentPayload() {
   return {
     ingredients: S.ingredients, recipes: S.recipes,
-    settings: S.settings, logs: S.logs, updatedAt: localStamp(),
+    settings: S.settings, logs: S.logs, training: S.training || null, updatedAt: localStamp(),
   };
 }
 
@@ -667,6 +672,7 @@ function adoptPayload(p) {
   if (p.recipes) S.recipes = p.recipes;
   if (p.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings);
   if (p.logs) S.logs = p.logs;
+  if (p.training) { S.training = p.training; writeLS("obroci_training", S.training); }
   writeLS(K_DATA, { ingredients: S.ingredients, recipes: S.recipes, settings: S.settings });
   writeLS(K_LOGS, S.logs);
   localStorage.setItem(K_STAMP, String(p.updatedAt || Date.now()));
@@ -990,14 +996,40 @@ function sheetImport(kind) {
 /* ---------- render ---------- */
 
 function render() {
-  const views = { danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise };
-  $("#main").innerHTML = views[S.tab]();
+  /* Skoči na vrh samo kad se mijenja prikaz (tab/pod-tab); kod re-rendera
+     istog prikaza (npr. unos serije u treningu) zadrži scroll poziciju. */
+  const key = S.tab + ":" + (S.trainingTab || "");
+  const keepScroll = S._renderKey === key;
+  const y = window.scrollY;
+  S._renderKey = key;
+
+  const views = Object.assign({ danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise }, S.extraViews || {});
+  $("#main").innerHTML = (views[S.tab] || viewDanas)();
   document.querySelectorAll("#nav button").forEach((b) => {
     b.classList.toggle("on", b.dataset.tab === S.tab);
   });
   renderSheet();
   if (S.tab === "vise") updateStorageInfo();
-  window.scrollTo(0, 0);
+  window.scrollTo(0, keepScroll ? y : 0);
+  /* Trening modul (ako je učitan) osvježava štopericu nakon rendera. */
+  if (typeof S.afterRender === "function") S.afterRender();
+}
+
+/* Generička potvrda za nepovratne radnje (brisanje). ok() se izvrši na "Obriši". */
+function askConfirm(opts) {
+  S.sheet = { type: "confirm", title: opts.title || "Potvrda", msg: opts.msg || "", okLabel: opts.okLabel || "Obriši", ok: opts.ok };
+  renderSheet();
+}
+function confirmSheet(s) {
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12"><h2>${esc(s.title)}</h2></div>
+    <p class="note">${esc(s.msg)}</p>
+    <div class="row" style="gap:8px;margin-top:12px">
+      <button class="btn btn-g grow" data-act="confirm-cancel">Odustani</button>
+      <button class="btn grow" data-act="confirm-ok" style="background:var(--coral);color:#1a1410;font-weight:700">${esc(s.okLabel)}</button>
+    </div>
+  </div>`;
 }
 
 function renderSheet() {
@@ -1005,7 +1037,9 @@ function renderSheet() {
   if (!S.sheet) { stopCam(); host.innerHTML = ""; host.style.display = "none"; return; }
   const s = S.sheet;
   let inner = "";
-  if (s.type === "picker") inner = sheetPicker(s.slot);
+  if (s.type && s.type.indexOf("t-") === 0 && typeof trainingSheet === "function") inner = trainingSheet(s);
+  else if (s.type === "confirm") inner = confirmSheet(s);
+  else if (s.type === "picker") inner = sheetPicker(s.slot);
   else if (s.type === "recipe-view") inner = sheetRecipeView(s.recipe);
   else if (s.type === "recipe-edit") inner = sheetRecipeEdit(s.recipe);
   else if (s.type === "ingredient") inner = sheetIngredient(s.ing);
@@ -1024,7 +1058,10 @@ const srvMap = {};
 
 document.addEventListener("click", (e) => {
   const nav = e.target.closest("#nav button");
-  if (nav) { S.tab = nav.dataset.tab; S.sheet = null; render(); return; }
+  if (nav) {
+    if (S.guardLeave && S.guardLeave("tab:" + nav.dataset.tab)) return;
+    S.tab = nav.dataset.tab; S.sheet = null; render(); return;
+  }
 
   const host = $("#sheet");
   if (S.sheet && e.target === host) { S.sheet = null; renderSheet(); return; }
@@ -1034,6 +1071,9 @@ document.addEventListener("click", (e) => {
   const a = el.dataset.act;
 
   if (a === "close") { S.sheet = null; renderSheet(); return; }
+
+  if (a === "confirm-cancel") { S.sheet = null; renderSheet(); return; }
+  if (a === "confirm-ok") { const fn = S.sheet && S.sheet.ok; S.sheet = null; if (fn) fn(); else render(); return; }
 
   if (a === "day") { S.day = addDays(S.day, parseInt(el.dataset.n, 10)); render(); return; }
 
@@ -1140,9 +1180,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "del-recipe") {
-    S.recipes = S.recipes.filter((x) => x.id !== S.sheet.recipe.id);
-    if (saveData()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const rid = S.sheet.recipe.id, rname = S.sheet.recipe.name;
+    askConfirm({ msg: "Obrisati recept „" + rname + "”?", ok: () => {
+      S.recipes = S.recipes.filter((x) => x.id !== rid);
+      if (saveData()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   if (a === "sync-open") { S.sheet = { type: "sync" }; renderSheet(); return; }
@@ -1227,9 +1271,13 @@ document.addEventListener("click", (e) => {
     S.sheet = null; render(); return;
   }
   if (a === "del-ing") {
-    S.ingredients = S.ingredients.filter((y) => y.id !== S.sheet.ing.id);
-    if (saveData()) toast("Obrisano");
-    S.sheet = null; render(); return;
+    const iid = S.sheet.ing.id, iname = S.sheet.ing.name;
+    askConfirm({ msg: "Obrisati namirnicu „" + iname + "”?", ok: () => {
+      S.ingredients = S.ingredients.filter((y) => y.id !== iid);
+      if (saveData()) toast("Obrisano");
+      S.sheet = null; render();
+    } });
+    return;
   }
 
   if (a === "import-ing") { S.sheet = { type: "import", kind: "ing" }; renderSheet(); return; }
@@ -1384,6 +1432,7 @@ consumeAuthHash().then((came) => {
   if (came) { render(); toast("Prijavljen"); }
   if (SYNC.cfg && SYNC.cfg.access_token) syncNow();
 });
+if (typeof window !== "undefined" && typeof window.onTrainingReady === "function") window.onTrainingReady();
 window.addEventListener("online", () => syncNow());
 
 if ("serviceWorker" in navigator) {
