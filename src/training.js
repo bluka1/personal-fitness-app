@@ -40,7 +40,7 @@ function saveTraining() {
   return true;
 }
 
-const exName = (id) => { const e = S.training.exercises.find((x) => x.id === id); return e ? e.name : "nepoznata vježba"; };
+const exName = (id) => { const e = S.training.exercises.find((x) => x.id === id); return e ? e.name : tr("nepoznata vježba"); };
 
 /* ---------- glavni prikaz s pod-navigacijom ---------- */
 
@@ -50,16 +50,16 @@ function viewTrening() {
   let html = `
   <div class="pad">
     <div class="row spread mb14">
-      <h1>Trening</h1>
+      <h1>${tr("Trening")}</h1>
     </div>
     <div class="seg mb14">
-      ${TSLOTS.map((t) => `<button data-act="t-tab" data-t="${t.id}" class="${S.trainingTab === t.id ? "on" : ""}">${t.label}</button>`).join("")}
+      ${TSLOTS.map((t) => `<button data-act="t-tab" data-t="${t.id}" class="${S.trainingTab === t.id ? "on" : ""}">${tr(t.label)}</button>`).join("")}
     </div>`;
 
   if (active && S.trainingTab !== "log") {
     html += `<button class="card row-btn p12 mb12" data-act="t-resume-open" style="border-color:var(--amber)">
-      <div class="eyebrow" style="color:var(--amber)">Trening u tijeku</div>
-      <div style="font-size:14.5px;font-weight:600;margin-top:3px">Nastavi trening →</div>
+      <div class="eyebrow" style="color:var(--amber)">${tr("Trening u tijeku")}</div>
+      <div style="font-size:14.5px;font-weight:600;margin-top:3px">${tr("Nastavi trening")} →</div>
     </button>`;
   }
 
@@ -76,10 +76,10 @@ function viewTrening() {
 function paneVjezbe() {
   let html = `
     <div class="row spread mb10">
-      <span class="eyebrow">${S.training.exercises.length} vježbi</span>
-      <button class="btn btn-p sm" data-act="t-new-ex">Nova vježba</button>
+      <span class="eyebrow">${S.training.exercises.length} ${tr("vježbi")}</span>
+      <button class="btn btn-p sm" data-act="t-new-ex">${tr("Nova vježba")}</button>
     </div>`;
-  if (!S.training.exercises.length) html += `<p class="note">Još nema vježbi. Dodaj prvu.</p>`;
+  if (!S.training.exercises.length) html += `<p class="note">${tr("Još nema vježbi. Dodaj prvu.")}</p>`;
   S.training.exercises.forEach((e) => {
     html += `
     <button class="card row-btn p12 mb8" data-act="t-open-ex" data-id="${e.id}">
@@ -96,18 +96,18 @@ function sheetExercise(x) {
   return `
   <div class="sheet-in">
     <div class="row spread mb14">
-      <h2>Vježba</h2>
-      <button class="btn btn-g sm" data-act="close">Odustani</button>
+      <h2>${tr("Vježba")}</h2>
+      <button class="btn btn-g sm" data-act="close">${tr("Odustani")}</button>
     </div>
-    <label class="eyebrow">Naziv</label>
-    <input id="tx_name" value="${esc(x.name || "")}" placeholder="npr. Potisak s klupe" style="margin:6px 0 14px">
-    <div class="eyebrow mb8">Mišići</div>
+    <label class="eyebrow">${tr("Naziv")}</label>
+    <input id="tx_name" value="${esc(x.name || "")}" placeholder="${tr('npr. Potisak s klupe')}" style="margin:6px 0 14px">
+    <div class="eyebrow mb8">${tr("Mišići")}</div>
     <div class="row wrap" style="margin-bottom:12px">${chips(MUSCLES, x.muscles || [], "t-ex-muscle")}</div>
-    <div class="eyebrow mb8">Oprema</div>
+    <div class="eyebrow mb8">${tr("Oprema")}</div>
     <div class="row wrap" style="margin-bottom:16px">${chips(EQUIPMENT, x.equipment || [], "t-ex-equip")}</div>
     <div class="row" style="gap:8px">
-      <button class="btn btn-p grow" data-act="t-save-ex">Spremi</button>
-      ${x._editing ? '<button class="btn btn-g" data-act="t-del-ex">Obriši</button>' : ""}
+      <button class="btn btn-p grow" data-act="t-save-ex">${tr("Spremi")}</button>
+      ${x._editing ? `<button class="btn btn-g" data-act="t-del-ex">${tr("Obriši")}</button>` : ""}
     </div>
   </div>`;
 }
@@ -117,12 +117,12 @@ function sheetTemplate(tpl) {
   return `
   <div class="sheet-in">
     <div class="row spread mb14">
-      <h2>Predložak</h2>
-      <button class="btn btn-g sm" data-act="close">Odustani</button>
+      <h2>${tr("Predložak")}</h2>
+      <button class="btn btn-g sm" data-act="close">${tr("Odustani")}</button>
     </div>
-    <label class="eyebrow">Naziv</label>
-    <input id="tt_title" value="${esc(tpl.title || '')}" placeholder="npr. Gornji dio A" style="margin:6px 0 14px">
-    <div class="eyebrow mb8">Vježbe</div>
+    <label class="eyebrow">${tr("Naziv")}</label>
+    <input id="tt_title" value="${esc(tpl.title || '')}" placeholder="${tr('npr. Gornji dio A')}" style="margin:6px 0 14px">
+    <div class="eyebrow mb8">${tr("Vježbe")}</div>
     <div class="mb10">
       ${tpl.exercises.map((row, i) => `
         <div class="card p12 mb8" style="background:var(--sf2)">
@@ -130,12 +130,12 @@ function sheetTemplate(tpl) {
             <span class="ellip" style="flex:1;font-size:14px">${esc(exName(row.exerciseId))}</span>
             <button class="x" data-act="t-tpl-rm" data-i="${i}">×</button>
           </div>
-          <div class="num sub2" style="margin-top:4px">${row.targetSets.length} × ${row.targetSets[0] ? row.targetSets[0].reps + ' pon · ' + row.targetSets[0].weight + ' kg' : '—'} · pauza ${row.restSeconds}s</div>
+          <div class="num sub2" style="margin-top:4px">${row.targetSets.length} × ${row.targetSets[0] ? row.targetSets[0].reps + ' ' + tr('pon') + ' · ' + row.targetSets[0].weight + ' kg' : '—'} · ${tr("pauza")} ${row.restSeconds}s</div>
           <div class="row" style="gap:8px;margin-top:8px">
-            <div style="flex:1"><label class="eyebrow">Serije</label><input inputmode="numeric" id="ts_sets_${i}" value="${row.targetSets.length}" class="mini"></div>
-            <div style="flex:1"><label class="eyebrow">Pon.</label><input inputmode="numeric" id="ts_reps_${i}" value="${row.targetSets[0] ? row.targetSets[0].reps : 5}" class="mini"></div>
-            <div style="flex:1"><label class="eyebrow">Kg</label><input inputmode="decimal" id="ts_wt_${i}" value="${row.targetSets[0] ? row.targetSets[0].weight : 0}" class="mini"></div>
-            <div style="flex:1"><label class="eyebrow">Pauza s</label><input inputmode="numeric" id="ts_rest_${i}" value="${row.restSeconds}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Serije")}</label><input inputmode="numeric" id="ts_sets_${i}" value="${row.targetSets.length}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Pon.")}</label><input inputmode="numeric" id="ts_reps_${i}" value="${row.targetSets[0] ? row.targetSets[0].reps : 5}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Kg")}</label><input inputmode="decimal" id="ts_wt_${i}" value="${row.targetSets[0] ? row.targetSets[0].weight : 0}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Pauza s")}</label><input inputmode="numeric" id="ts_rest_${i}" value="${row.restSeconds}" class="mini"></div>
           </div>
         </div>`).join("")}
     </div>
@@ -144,8 +144,8 @@ function sheetTemplate(tpl) {
       <button class="btn" data-act="t-tpl-add">+</button>
     </div>
     <div class="row" style="gap:8px">
-      <button class="btn btn-p grow" data-act="t-save-tpl">Spremi</button>
-      ${tpl._editing ? '<button class="btn btn-g" data-act="t-del-tpl">Obriši</button>' : ""}
+      <button class="btn btn-p grow" data-act="t-save-tpl">${tr("Spremi")}</button>
+      ${tpl._editing ? `<button class="btn btn-g" data-act="t-del-tpl">${tr("Obriši")}</button>` : ""}
     </div>
   </div>`;
 }
@@ -197,26 +197,26 @@ function sheetSchedule(date) {
   <div class="sheet-in">
     <div class="row spread mb12">
       <h2>${prettyDate(d)}</h2>
-      <button class="btn btn-g sm" data-act="close">Zatvori</button>
+      <button class="btn btn-g sm" data-act="close">${tr("Zatvori")}</button>
     </div>
     ${sess.length ? sess.map((s) => `
       <div class="card p12 mb8">
         <div class="row spread">
           <div>
-            <div style="font-size:14px;font-weight:600">${esc(s.snapshot ? s.snapshot.title : (S.training.templates.find((t) => t.id === s.templateId) || {}).title || "Trening")}</div>
-            <div class="num sub2">${s.status === "completed" ? "Završeno" : s.status === "skipped" ? "Preskočeno" : "Planirano"}</div>
+            <div style="font-size:14px;font-weight:600">${esc(s.snapshot ? s.snapshot.title : (S.training.templates.find((t) => t.id === s.templateId) || {}).title || tr("Trening"))}</div>
+            <div class="num sub2">${s.status === "completed" ? tr("Završeno") : s.status === "skipped" ? tr("Preskočeno") : tr("Planirano")}</div>
           </div>
           ${s.status === "planned" ? `<div class="row" style="gap:6px">
-            <button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">Pokreni</button>
-            <button class="btn btn-g sm" data-act="t-cal-skip" data-id="${s.id}">Preskoči</button>
+            <button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">${tr("Pokreni")}</button>
+            <button class="btn btn-g sm" data-act="t-cal-skip" data-id="${s.id}">${tr("Preskoči")}</button>
             <button class="x" data-act="t-del-session" data-id="${s.id}">×</button>
-          </div>` : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">Otvori</button>`}
+          </div>` : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">${tr("Otvori")}</button>`}
         </div>
-      </div>`).join("") : `<p class="note">Ništa planirano za ovaj dan.</p>`}
-    <div class="eyebrow mb8" style="margin-top:8px">Zakaži predložak</div>
+      </div>`).join("") : `<p class="note">${tr("Ništa planirano za ovaj dan.")}</p>`}
+    <div class="eyebrow mb8" style="margin-top:8px">${tr("Zakaži predložak")}</div>
     <div class="row" style="gap:8px">
       <select id="tsch_tpl" style="flex:1;min-width:0">${opts}</select>
-      <button class="btn btn-p" data-act="t-schedule-do" data-date="${date}">Zakaži</button>
+      <button class="btn btn-p" data-act="t-schedule-do" data-date="${date}">${tr("Zakaži")}</button>
     </div>`;
 }
 
@@ -224,16 +224,16 @@ function sheetSchedule(date) {
 
 function panePovijest() {
   const done = S.training.sessions.filter((s) => s.status === "completed").sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
-  if (!done.length) return `<p class="note" style="margin-top:8px">Još nema završenih treninga.</p>`;
+  if (!done.length) return `<p class="note" style="margin-top:8px">${tr("Još nema završenih treninga.")}</p>`;
   let html = `<div style="margin-top:4px">`;
   done.forEach((s) => {
     html += `
     <button class="card row-btn p12 mb8" data-act="t-open-session" data-id="${s.id}">
       <div class="row spread">
-        <span style="font-size:14.5px;font-weight:500">${esc(s.snapshot ? s.snapshot.title : "Trening")}</span>
+        <span style="font-size:14.5px;font-weight:500">${esc(s.snapshot ? s.snapshot.title : tr("Trening"))}</span>
         <span class="num sub" style="margin:0">${esc(s.date)}</span>
       </div>
-      <div class="num sub2">${sessionSetCount(s)} serija · volumen ${Math.round(sessionVolume(s))} kg</div>
+      <div class="num sub2">${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg</div>
     </button>`;
   });
   return html + "</div>";
@@ -244,16 +244,16 @@ function sheetSession(s) {
   return `
   <div class="sheet-in">
     <div class="row spread mb4" style="align-items:flex-start">
-      <h2 style="font-size:19px">${esc(snap.title || "Trening")}</h2>
-      <button class="btn btn-g sm" data-act="close">Zatvori</button>
+      <h2 style="font-size:19px">${esc(snap.title || tr("Trening"))}</h2>
+      <button class="btn btn-g sm" data-act="close">${tr("Zatvori")}</button>
     </div>
-    <div class="eyebrow mb14">${esc(s.date)} · ${sessionSetCount(s)} serija · volumen ${Math.round(sessionVolume(s))} kg</div>
+    <div class="eyebrow mb14">${esc(s.date)} · ${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg</div>
     ${(s.log ? s.log.performedExercises : []).map((pe) => `
       <div class="mb14">
         <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">${esc(exName(pe.exerciseId))}</div>
-        ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">Serija ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
+        ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Serija")} ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
       </div>`).join("")}
-    <button class="btn btn-g wide" style="margin-top:6px" data-act="t-del-session" data-id="${esc(s.id)}">Obriši trening</button>
+    <button class="btn btn-g wide" style="margin-top:6px" data-act="t-del-session" data-id="${esc(s.id)}">${tr("Obriši trening")}</button>
   </div>`;
 }
 
@@ -290,11 +290,11 @@ function S_guardInstall() {
 function sheetLeave() {
   return `
   <div class="sheet-in">
-    <div class="row spread mb12"><h2>Trening u tijeku</h2></div>
-    <p class="note">Trening još nije spremljen. Ako izađeš, ostaje prekinut i možeš ga kasnije nastaviti.</p>
+    <div class="row spread mb12"><h2>${tr("Trening u tijeku")}</h2></div>
+    <p class="note">${tr("Trening još nije spremljen. Ako izađeš, ostaje prekinut i možeš ga kasnije nastaviti.")}</p>
     <div class="row" style="gap:8px;margin-top:8px">
-      <button class="btn btn-p grow" data-act="t-leave-stay">Ostani</button>
-      <button class="btn btn-g grow" data-act="t-leave-go">Izađi</button>
+      <button class="btn btn-p grow" data-act="t-leave-stay">${tr("Ostani")}</button>
+      <button class="btn btn-g grow" data-act="t-leave-go">${tr("Izađi")}</button>
     </div>
   </div>`;
 }
@@ -302,11 +302,11 @@ function sheetLeave() {
 function sheetResume(pending) {
   return `
   <div class="sheet-in">
-    <div class="row spread mb12"><h2>Prekinuti trening</h2></div>
-    <p class="note">Imaš trening koji nije završen. Želiš li ga nastaviti ili započeti novi? Novi briše prekinuti.</p>
+    <div class="row spread mb12"><h2>${tr("Prekinuti trening")}</h2></div>
+    <p class="note">${tr("Imaš trening koji nije završen. Želiš li ga nastaviti ili započeti novi? Novi briše prekinuti.")}</p>
     <div class="row" style="gap:8px;margin-top:8px">
-      <button class="btn btn-p grow" data-act="t-resume-continue">Nastavi</button>
-      <button class="btn btn-g grow" data-act="t-resume-new" data-id="${pending && pending.templateId ? esc(pending.templateId) : ""}">Započni novi</button>
+      <button class="btn btn-p grow" data-act="t-resume-continue">${tr("Nastavi")}</button>
+      <button class="btn btn-g grow" data-act="t-resume-new" data-id="${pending && pending.templateId ? esc(pending.templateId) : ""}">${tr("Započni novi")}</button>
     </div>
   </div>`;
 }
@@ -333,12 +333,12 @@ function paneLog(active) {
     <div class="card p14 mb14" style="border-color:var(--amber)">
       <div class="row spread mb10">
         <div>
-          <div class="eyebrow" style="color:var(--amber)">U tijeku</div>
+          <div class="eyebrow" style="color:var(--amber)">${tr("U tijeku")}</div>
           <div style="font-size:16px;font-weight:700;margin-top:2px">${esc(snap.title)}</div>
         </div>
         <div class="center">
           <div class="num" id="t-timer" style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">${fmtDur(Date.now() - (active.startedAt || Date.now()))}</div>
-          <button class="btn btn-g sm" style="margin-top:6px" data-act="t-abandon">Odustani</button>
+          <button class="btn btn-g sm" style="margin-top:6px" data-act="t-abandon">${tr("Odustani")}</button>
         </div>
       </div>
       ${snap.exercises.map((row, ei) => {
@@ -349,36 +349,36 @@ function paneLog(active) {
         <div class="mb12">
           <div class="row spread mb6">
             <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
-            ${bw.weight ? `<span class="num sub" style="margin:0">najbolje ${bw.weight} kg · ${bw.times}×</span>` : ""}
+            ${bw.weight ? `<span class="num sub" style="margin:0">${tr("najbolje")} ${bw.weight} kg · ${bw.times}×</span>` : ""}
           </div>
-          ${last ? `<div class="num sub2" style="margin:-2px 0 8px">prošli put: ${last.reps} × ${last.weight} kg</div>` : ""}
+          ${last ? `<div class="num sub2" style="margin:-2px 0 8px">${tr("prošli put")}: ${last.reps} × ${last.weight} kg</div>` : ""}
           ${pe.sets.map((s, si) => `
             <div class="setrow${s.done ? " done" : ""}">
-              <button class="chk" data-act="t-set-done" data-ei="${ei}" data-si="${si}" aria-label="Gotovo">${s.done ? "✓" : ""}</button>
+              <button class="chk" data-act="t-set-done" data-ei="${ei}" data-si="${si}" aria-label="${tr('Gotovo')}">${s.done ? "✓" : ""}</button>
               <div class="stpr">
-                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="-1" aria-label="Manje pon.">−</button>
-                <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" aria-label="Ponavljanja">
-                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="1" aria-label="Više pon.">+</button>
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="-1" aria-label="${tr('Manje pon.')}">−</button>
+                <input inputmode="numeric" data-act="t-set-reps" data-ei="${ei}" data-si="${si}" value="${s.reps}" aria-label="${tr('Ponavljanja')}">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="reps" data-d="1" aria-label="${tr('Više pon.')}">+</button>
               </div>
               <span class="mut" style="font-size:12px">×</span>
               <div class="stpr">
-                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="-2.5" aria-label="Manje kg">−</button>
-                <input inputmode="decimal" data-act="t-set-wt" data-ei="${ei}" data-si="${si}" value="${s.weight}" aria-label="Kilogrami">
-                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="2.5" aria-label="Više kg">+</button>
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="-2.5" aria-label="${tr('Manje kg')}">−</button>
+                <input inputmode="decimal" data-act="t-set-wt" data-ei="${ei}" data-si="${si}" value="${s.weight}" aria-label="${tr('Kilogrami')}">
+                <button class="stp" data-act="t-set-step" data-ei="${ei}" data-si="${si}" data-fld="weight" data-d="2.5" aria-label="${tr('Više kg')}">+</button>
               </div>
               <button class="x" data-act="t-rmset" data-ei="${ei}" data-si="${si}">×</button>
             </div>`).join("")}
-          <button class="btn btn-g sm" data-act="t-addset" data-ei="${ei}">+ serija</button>
+          <button class="btn btn-g sm" data-act="t-addset" data-ei="${ei}">+ ${tr("serija")}</button>
         </div>`;
       }).join("")}
-      <button class="btn btn-p wide" style="margin-top:6px" data-act="t-finish">Završi trening</button>
+      <button class="btn btn-p wide" style="margin-top:6px" data-act="t-finish">${tr("Završi trening")}</button>
     </div>
     ${S.rest ? `
     <div class="restbar" id="t-rest">
-      <span>Pauza <span class="num" id="t-rest-num">${fmtDur(Math.max(0, S.rest.endsAt - Date.now()))}</span></span>
+      <span>${tr("Pauza")} <span class="num" id="t-rest-num">${fmtDur(Math.max(0, S.rest.endsAt - Date.now()))}</span></span>
       <span class="row" style="gap:8px">
         <button data-act="t-rest-plus">+15s</button>
-        <button data-act="t-rest-skip">Preskoči</button>
+        <button data-act="t-rest-skip">${tr("Preskoči")}</button>
       </span>
     </div>` : ""}`;
   }
@@ -386,18 +386,18 @@ function paneLog(active) {
   if (!active) {
     html += `
     <div class="row spread mb10" style="margin-top:4px">
-      <span class="eyebrow">Predlošci</span>
-      <button class="btn btn-p sm" data-act="t-new-tpl">Novi predložak</button>
+      <span class="eyebrow">${tr("Predlošci")}</span>
+      <button class="btn btn-p sm" data-act="t-new-tpl">${tr("Novi predložak")}</button>
     </div>`;
-    if (!S.training.templates.length) html += `<p class="note">Nema predložaka. Napravi prvi pa ga pokreni.</p>`;
+    if (!S.training.templates.length) html += `<p class="note">${tr("Nema predložaka. Napravi prvi pa ga pokreni.")}</p>`;
     S.training.templates.forEach((t) => {
       html += `
       <div class="card p12 mb8">
         <div style="font-size:14.5px;font-weight:500">${esc(t.title)}</div>
-        <div class="num sub2" style="margin-bottom:10px">${t.exercises.length} vježbi · ${t.exercises.reduce((a, x) => a + (x.targetSets ? x.targetSets.length : 0), 0)} serija</div>
+        <div class="num sub2" style="margin-bottom:10px">${t.exercises.length} ${tr("vježbi")} · ${t.exercises.reduce((a, x) => a + (x.targetSets ? x.targetSets.length : 0), 0)} ${tr("serija")}</div>
         <div class="row" style="gap:8px">
-          <button class="btn btn-p grow" data-act="t-start" data-id="${t.id}">Pokreni</button>
-          <button class="btn btn-g" data-act="t-edit-tpl" data-id="${t.id}">Uredi</button>
+          <button class="btn btn-p grow" data-act="t-start" data-id="${t.id}">${tr("Pokreni")}</button>
+          <button class="btn btn-g" data-act="t-edit-tpl" data-id="${t.id}">${tr("Uredi")}</button>
         </div>
       </div>`;
     });
@@ -457,23 +457,23 @@ document.addEventListener("click", (e) => {
   if (a === "t-save-ex") {
     const ex = S.sheet.ex;
     ex.name = $("#tx_name").value.trim();
-    if (!ex.name) { toast("Vježba treba naziv"); return; }
+    if (!ex.name) { toast(tr("Vježba treba naziv")); return; }
     if (!ex.id) {
-      if (S.training.exercises.some((y) => y.name.trim().toLowerCase() === ex.name.toLowerCase())) { toast('„' + ex.name + '“ već postoji'); return; }
+      if (S.training.exercises.some((y) => y.name.trim().toLowerCase() === ex.name.toLowerCase())) { toast(tr('„{name}“ već postoji', { name: ex.name })); return; }
       ex.id = uid("ex");
       S.training.exercises.push({ id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] });
     } else {
       const i = S.training.exercises.findIndex((y) => y.id === ex.id);
       S.training.exercises[i] = { id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] };
     }
-    if (saveTraining()) toast("Spremljeno");
+    if (saveTraining()) toast(tr("Spremljeno"));
     S.sheet = null; render(); return;
   }
   if (a === "t-del-ex") {
     const id = S.sheet.ex.id, name = S.sheet.ex.name;
-    askConfirm({ msg: "Obrisati vježbu „" + (name || "") + "”?", ok: () => {
+    askConfirm({ msg: tr("Obrisati vježbu „{name}”?", { name: name || "" }), ok: () => {
       S.training.exercises = S.training.exercises.filter((y) => y.id !== id);
-      if (saveTraining()) toast("Obrisano");
+      if (saveTraining()) toast(tr("Obrisano"));
       S.sheet = null; render();
     } });
     return;
@@ -522,7 +522,7 @@ document.addEventListener("click", (e) => {
       const prevBest = bestWeight(S.training.sessions, row.exerciseId);
       let sessMax = 0;
       active.log.performedExercises.forEach((pe2) => pe2.sets.forEach((st) => { if (st.done && st !== set && (st.weight || 0) > sessMax) sessMax = st.weight || 0; }));
-      if (w > 0 && prevBest > 0 && w > prevBest && w > sessMax) toast("Novi rekord 🏆 " + w + " kg");
+      if (w > 0 && prevBest > 0 && w > prevBest && w > sessMax) toast(tr("Novi rekord 🏆 {w} kg", { w: w }));
       const rest = row.restSeconds || 0;
       if (rest > 0) { S.rest = { endsAt: Date.now() + rest * 1000, exId: row.exerciseId }; if (navigator.vibrate) navigator.vibrate(30); }
     }
@@ -536,7 +536,7 @@ document.addEventListener("click", (e) => {
     active.status = "completed";
     active.completedAt = new Date().toISOString();
     unregisterLeaveGuard(); S.rest = null;
-    if (saveTraining()) toast("Trening spremljen");
+    if (saveTraining()) toast(tr("Trening spremljen"));
     S.trainingTab = "hist"; S.sheet = null; render(); return;
   }
   if (a === "t-leave-stay") { S.sheet = null; renderSheet(); return; }
@@ -590,19 +590,19 @@ document.addEventListener("click", (e) => {
     collectTemplate();
     const t = S.sheet.tpl;
     t.title = ($("#tt_title").value || "").trim();
-    if (!t.title) { toast("Predložak treba naziv"); return; }
-    if (!t.exercises.length) { toast("Dodaj barem jednu vježbu"); return; }
+    if (!t.title) { toast(tr("Predložak treba naziv")); return; }
+    if (!t.exercises.length) { toast(tr("Dodaj barem jednu vježbu")); return; }
     t.exercises.forEach((r, i) => (r.order = i));
     if (!t.id) { t.id = uid("tpl"); S.training.templates.push(stripMeta(t)); }
     else { const i = S.training.templates.findIndex((x) => x.id === t.id); S.training.templates[i] = stripMeta(t); }
-    if (saveTraining()) toast("Spremljeno");
+    if (saveTraining()) toast(tr("Spremljeno"));
     S.sheet = null; render(); return;
   }
   if (a === "t-del-tpl") {
     const id = S.sheet.tpl.id, title = S.sheet.tpl.title;
-    askConfirm({ msg: "Obrisati predložak „" + (title || "") + "”?", ok: () => {
+    askConfirm({ msg: tr("Obrisati predložak „{title}”?", { title: title || "" }), ok: () => {
       S.training.templates = S.training.templates.filter((x) => x.id !== id);
-      if (saveTraining()) toast("Obrisano");
+      if (saveTraining()) toast(tr("Obrisano"));
       S.sheet = null; render();
     } });
     return;
@@ -615,9 +615,9 @@ document.addEventListener("click", (e) => {
   if (a === "t-schedule-do") {
     const id = $("#tsch_tpl").value;
     const tpl = S.training.templates.find((t) => t.id === id);
-    if (!tpl) { toast("Nema predloška"); return; }
+    if (!tpl) { toast(tr("Nema predloška")); return; }
     S.training.sessions.push({ id: uid("ses"), date: el.dataset.date, templateId: id, status: "planned", snapshot: cloneTemplate(tpl) });
-    if (saveTraining()) toast("Zakazano");
+    if (saveTraining()) toast(tr("Zakazano"));
     S.sheet = null; render(); return;
   }
   if (a === "t-cal-start") {
@@ -632,17 +632,17 @@ document.addEventListener("click", (e) => {
   }
   if (a === "t-cal-skip") {
     const s = S.training.sessions.find((x) => x.id === el.dataset.id);
-    s.status = "skipped"; if (saveTraining()) toast("Preskočeno");
+    s.status = "skipped"; if (saveTraining()) toast(tr("Preskočeno"));
     S.sheet = null; render(); return;
   }
   if (a === "t-open-session") { S.sheet = { type: "t-session", session: S.training.sessions.find((x) => x.id === el.dataset.id) }; renderSheet(); return; }
   if (a === "t-del-session") {
     const id = el.dataset.id;
-    askConfirm({ msg: "Obrisati ovaj trening?", ok: () => {
+    askConfirm({ msg: tr("Obrisati ovaj trening?"), ok: () => {
       const s = S.training.sessions.find((x) => x.id === id);
       if (s && s.status === "active") unregisterLeaveGuard(); // brišemo li aktivni, makni čuvar
       S.training.sessions = S.training.sessions.filter((x) => x.id !== id);
-      if (saveTraining()) toast("Trening obrisan");
+      if (saveTraining()) toast(tr("Trening obrisan"));
       S.sheet = null; render();
     } });
     return;
@@ -653,7 +653,7 @@ document.addEventListener("click", (e) => {
 
 function startSession(templateId) {
   const tpl = S.training.templates.find((t) => t.id === templateId);
-  if (!tpl) { toast("Predložak ne postoji"); return; }
+  if (!tpl) { toast(tr("Predložak ne postoji")); return; }
   const snap = cloneTemplate(tpl);
   const session = {
     id: uid("ses"), date: dateKey(S.day || new Date()), templateId: tpl.id,
@@ -726,14 +726,14 @@ function trainingDanasSection() {
   if (!S.training) return "";
   const key = dateKey(S.day || new Date());
   const sess = S.training.sessions.filter((s) => s.date === key);
-  let html = `<div class="row spread mb10" style="margin-top:24px"><span class="eyebrow">Trening</span></div>`;
-  if (!sess.length) return html + `<p class="note">Nema predviđenih treninga za danas.</p>`;
+  let html = `<div class="row spread mb10" style="margin-top:24px"><span class="eyebrow">${tr("Trening")}</span></div>`;
+  if (!sess.length) return html + `<p class="note">${tr("Nema predviđenih treninga za danas.")}</p>`;
   sess.forEach((s) => {
-    const title = s.snapshot ? s.snapshot.title : ((S.training.templates.find((t) => t.id === s.templateId) || {}).title || "Trening");
-    const label = s.status === "completed" ? "Završeno" : s.status === "active" ? "U tijeku" : s.status === "skipped" ? "Preskočeno" : "Planirano";
-    const action = s.status === "planned" ? `<button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">Pokreni</button>`
-      : s.status === "active" ? `<button class="btn btn-p sm" data-act="t-resume-open">Nastavi</button>`
-      : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">Otvori</button>`;
+    const title = s.snapshot ? s.snapshot.title : ((S.training.templates.find((t) => t.id === s.templateId) || {}).title || tr("Trening"));
+    const label = s.status === "completed" ? tr("Završeno") : s.status === "active" ? tr("U tijeku") : s.status === "skipped" ? tr("Preskočeno") : tr("Planirano");
+    const action = s.status === "planned" ? `<button class="btn btn-p sm" data-act="t-cal-start" data-id="${s.id}">${tr("Pokreni")}</button>`
+      : s.status === "active" ? `<button class="btn btn-p sm" data-act="t-resume-open">${tr("Nastavi")}</button>`
+      : `<button class="btn btn-g sm" data-act="t-open-session" data-id="${s.id}">${tr("Otvori")}</button>`;
     html += `
     <div class="card p14 mb10">
       <div class="row spread">
@@ -760,7 +760,7 @@ window.onTrainingReady = function () {
   if (nav && !nav.querySelector('[data-tab="trening"]')) {
     const btn = document.createElement("button");
     btn.dataset.tab = "trening";
-    btn.innerHTML = '<span class="pip"></span>Trening';
+    btn.innerHTML = `<span class="pip"></span>${tr("Trening")}`;
     const vise = nav.querySelector('[data-tab="vise"]');
     nav.insertBefore(btn, vise);
   }

@@ -29,6 +29,7 @@ def build() -> int:
     # Redoslijed: calc + seed treninga prije logike; training.js iza app.js
     # (registrira se sam na kraju, kad je start gotov i #nav je u DOM-u).
     parts = [
+        read("i18n.js"),
         read("training-calc.js"),
         read("training-seed.js"),
         read("seed.js"),
