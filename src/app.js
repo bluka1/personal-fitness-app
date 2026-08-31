@@ -1062,10 +1062,11 @@ function render() {
 
   const views = Object.assign({ danas: viewDanas, recepti: viewRecepti, namirnice: viewNamirnice, vise: viewVise }, S.extraViews || {});
   $("#main").innerHTML = (views[S.tab] || viewDanas)();
-  const NAVL = { danas: "Danas", recepti: "Recepti", namirnice: "Namirnice", vise: "Više" };
+  const NAVL = { danas: "Danas", recepti: "Recepti", namirnice: "Namirnice", trening: "Trening", vise: "Više" };
   document.querySelectorAll("#nav button").forEach((b) => {
     b.classList.toggle("on", b.dataset.tab === S.tab);
-    if (b.lastChild && b.lastChild.nodeType === 3) b.lastChild.textContent = tr(NAVL[b.dataset.tab] || "");
+    const key = NAVL[b.dataset.tab];
+    if (key && b.lastChild && b.lastChild.nodeType === 3) b.lastChild.textContent = tr(key);
   });
   document.documentElement.lang = curLang();
   renderSheet();
