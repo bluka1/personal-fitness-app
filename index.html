@@ -1404,7 +1404,7 @@ async function startCam() {
         }
       );
     } catch (e) {
-      camError("Kamera nije dostupna. Upiši barkod ručno.");
+      camError("Kamera nije dostupna (" + ((e && e.name) || e) + "). Upiši barkod ručno.");
     }
     return;
   }
@@ -1486,17 +1486,32 @@ async function offLookup(code) {
   renderSheet();
 }
 
+// Vrati {g, iname, base(makroi/100 g)} ako je unos gramažni (namirnica), inače null (recept).
+// Novi zapisi imaju base/g/iname; stari izvučemo iz imena "(NNN g)" i preračunamo per-100.
+function mealGramsInfo(m) {
+  if (m.base && m.g != null) return { g: m.g, iname: m.iname || m.name, base: m.base };
+  const mt = /^(.*) \((\d+(?:[.,]\d+)?)\s*g\)$/.exec(m.name || "");
+  if (mt && m.servings === 1) {
+    const g = parseFloat(mt[2].replace(",", "."));
+    if (g > 0) {
+      const k = 100 / g;
+      return { g: g, iname: mt[1], base: { kcal: m.kcal * k, p: m.p * k, c: m.c * k, f: m.f * k } };
+    }
+  }
+  return null;
+}
+
 function sheetMealEdit(m) {
-  const isIng = !!m.base; // stari zapisi bez base -> edit porcija (fallback)
+  const gi = mealGramsInfo(m);
   return `
   <div class="sheet-in">
     <div class="row spread mb14">
       <h2>Uredi unos</h2>
       <button class="btn btn-g sm" data-act="close">Odustani</button>
     </div>
-    <div class="ellip" style="font-weight:500;margin-bottom:12px">${esc(isIng ? m.iname : m.name)}</div>
-    <label class="eyebrow">${isIng ? "Gramaža (g)" : "Broj porcija"}</label>
-    <input inputmode="decimal" id="me_q" value="${isIng ? m.g : m.servings}" style="margin:6px 0 14px">
+    <div class="ellip" style="font-weight:500;margin-bottom:12px">${esc(gi ? gi.iname : m.name)}</div>
+    <label class="eyebrow">${gi ? "Gramaža (g)" : "Broj porcija"}</label>
+    <input inputmode="decimal" id="me_q" value="${gi ? gi.g : m.servings}" style="margin:6px 0 14px">
     <button class="btn btn-p wide" data-act="meal-save" data-id="${m.id}">Spremi</button>
   </div>`;
 }
@@ -1665,11 +1680,13 @@ document.addEventListener("click", (e) => {
     if (!m) { S.sheet = null; renderSheet(); return; }
     const q = num($("#me_q").value, 0);
     if (!q || q <= 0) { toast("Upiši broj veći od 0"); return; }
-    if (m.base) {
+    const gi = mealGramsInfo(m);
+    if (gi) {
       const k = q / 100;
-      m.g = q;
-      m.kcal = m.base.kcal * k; m.p = m.base.p * k; m.c = m.base.c * k; m.f = m.base.f * k;
-      m.name = m.iname + " (" + q + " g)";
+      // Zapiši base/iname/g natrag (stari zapisi ih dobiju pa idući edit ide čisto).
+      m.base = gi.base; m.iname = gi.iname; m.g = q;
+      m.kcal = gi.base.kcal * k; m.p = gi.base.p * k; m.c = gi.base.c * k; m.f = gi.base.f * k;
+      m.name = gi.iname + " (" + q + " g)";
     } else {
       m.servings = q;
     }
