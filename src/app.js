@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
   targets: { kcal: 1800, p: 195, c: 164, f: 40 },
   waterGoal: 4000,
   glass: 250,
+  ai: { provider: "anthropic", key: "", model: "", baseURL: "" },
 };
 
 const STATE_LABEL = { raw: "sirovo", cooked: "kuhano", as_sold: "kako se kupuje" };
@@ -135,6 +136,93 @@ function recipeMacros(recipe) {
   return { kcal: t.kcal / s, p: t.p / s, c: t.c / s, f: t.f / s };
 }
 
+/* ---------- AI (BYOK) ---------- */
+// Čiste funkcije (buildRequest/parseResponse/…) dolaze iz ai.js. Ovdje samo mreža.
+
+function aiConfigured() { return !!(S.settings.ai && S.settings.ai.key); }
+
+/* Pročitaj AI inpute iz tab-a Više i spremi (provider opcionalno mijenja). */
+function saveAiFromInputs(provider) {
+  const cur = S.settings.ai || {};
+  const gv = (id, fb) => { const el = $("#" + id); return String((el ? el.value : fb) || "").trim(); };
+  S.settings.ai = {
+    provider: provider || cur.provider || "anthropic",
+    key: gv("ai_key", cur.key),
+    model: gv("ai_model", cur.model),
+    baseURL: gv("ai_base", cur.baseURL),
+  };
+  saveData();
+}
+
+async function aiCall(opts) {
+  const cfg = S.settings.ai || {};
+  if (!cfg.key) throw new Error(tr("Postavi AI ključ u tabu Više."));
+  const req = buildRequest(cfg, opts);
+  let res;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetch(req.url, { method: "POST", headers: req.headers, body: JSON.stringify(req.body) });
+      break;
+    } catch (e) {
+      if (attempt === 1) throw new Error(tr("Poziv nije prošao — provider možda ne dopušta poziv iz preglednika, ili nema mreže."));
+    }
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + (t ? ": " + t.slice(0, 300) : ""));
+  }
+  return parseResponse(cfg, await res.json());
+}
+
+/* Analiza slike s guardrailom: do 2 pokušaja, drugi put strože traži čist JSON. */
+async function runImageExtract(kind) {
+  const pr = imagePrompt(kind, curLang());
+  const img = S.sheet.imgData;
+  let lastText = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const text = attempt === 0
+      ? pr.instruction
+      : pr.instruction + "\n\nYour previous reply could NOT be parsed as JSON. Reply again with ONLY the JSON value — start with { or [, no other text.";
+    lastText = await aiCall({ system: pr.system, text: text, imageDataUrl: img, maxTokens: 1600 });
+    try { return { json: extractJson(lastText) }; }
+    catch (e) { /* pokušaj ponovno */ }
+  }
+  return { raw: lastText };
+}
+
+/* Kompaktan tekstualni sažetak zadnjih 7 dana za AI (na engleskom — model prevede izlaz). */
+function aiWeekData() {
+  const g = S.settings.targets;
+  const lines = [
+    "Daily targets: " + g.kcal + " kcal, " + g.p + " g protein, " + g.c + " g carbs, " + g.f + " g fat. Water goal: " + S.settings.waterGoal + " ml.",
+    "",
+    "Days (most recent last):",
+  ];
+  const dates = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = addDays(new Date(), -i), k = dateKey(d);
+    dates.push(k);
+    const l = S.logs[k];
+    if (l && l.meals && l.meals.length) {
+      const t = dayTotals(l);
+      lines.push(k + ": " + r0(t.kcal) + " kcal, P " + r1(t.p) + ", C " + r1(t.c) + ", F " + r1(t.f) + ", water " + (l.water || 0) + " ml");
+    } else {
+      lines.push(k + ": not logged");
+    }
+  }
+  const sess = ((S.training && S.training.sessions) || []).filter((s) => dates.indexOf(s.date) >= 0 && s.status === "completed");
+  lines.push("", sess.length ? "Training sessions this week:" : "No training sessions completed this week.");
+  sess.forEach((s) => {
+    const snap = s.snapshot || { title: "Workout", exercises: [] };
+    let sets = 0;
+    if (s.log && s.log.performedExercises) s.log.performedExercises.forEach((pe) => { sets += (pe.sets || []).filter((x) => x.done).length; });
+    else (snap.exercises || []).forEach((e) => { sets += (e.targetSets || []).length; });
+    const names = (snap.exercises || []).map((e) => (typeof exName === "function" ? exName(e.exerciseId) : "")).filter(Boolean).join(", ");
+    lines.push(s.date + ": " + (snap.title || "Workout") + " — " + sets + " sets" + (names ? " (" + names + ")" : ""));
+  });
+  return lines.join("\n");
+}
+
 /* ---------- stanje ---------- */
 
 const S = {
@@ -243,6 +331,8 @@ function viewDanas() {
           </div>`).join("")}
       </div>
     </div>
+
+    <button class="btn wide mb14" data-act="import-plate">${tr("Dodaj jelo iz slike")}</button>
 
     <div class="card p16 mb14">
       <div class="row spread mb12">
@@ -371,6 +461,26 @@ function viewVise() {
       </div>
     </div>
 
+    ${(() => {
+      const ai = S.settings.ai || {}, aiP = aiPreset(ai);
+      return `
+    <div class="card p16 mb14">
+      <div class="eyebrow mb8">${tr("AI")}</div>
+      <p class="note">${tr("Upiši vlastiti API ključ. Ostaje samo na ovom uređaju. Treba za tjedni AI pregled i unos iz slike.")}</p>
+      <div class="seg" style="flex-wrap:wrap;gap:6px">
+        ${Object.keys(AI_PRESETS).map((k) => `<button data-act="set-ai-provider" data-provider="${k}" class="${(ai.provider || "anthropic") === k ? "on" : ""}">${esc(AI_PROVIDER_LABELS[k])}</button>`).join("")}
+      </div>
+      <label class="eyebrow" style="display:block;margin-top:12px">${tr("API ključ")}</label>
+      <input id="ai_key" type="password" value="${esc(ai.key || "")}" placeholder="sk-…" style="margin-top:6px">
+      <label class="eyebrow" style="display:block;margin-top:10px">${tr("Model")}</label>
+      <input id="ai_model" value="${esc(ai.model || "")}" placeholder="${esc(aiP.model)}" style="margin-top:6px">
+      <label class="eyebrow" style="display:block;margin-top:10px">${tr("Poslužitelj (baseURL)")}</label>
+      <input id="ai_base" value="${esc(ai.baseURL || "")}" placeholder="${esc(aiP.baseURL)}" style="margin-top:6px">
+      ${aiP.vision ? "" : `<p class="note" style="margin-top:8px;color:var(--amber)">${tr("Ovaj model ne podržava slike — unos iz slike neće raditi.")}</p>`}
+      <button class="btn btn-p wide" style="margin-top:14px" data-act="save-ai">${tr("Spremi AI postavke")}</button>
+    </div>`;
+    })()}
+
     <div class="card p16 mb14">
       <div class="row spread mb14">
         <span class="eyebrow">${tr("Tjedni pregled")}</span>
@@ -402,6 +512,7 @@ function viewVise() {
         <span class="eyebrow">${tr("Prosječna voda")}</span>
         <span class="num" style="font-size:15px;font-weight:700">${wDays.length ? (avgWater / 1000).toFixed(2).replace(".", ",") + " l" : "–"}<span class="mut" style="font-size:11px;font-weight:400"> / ${(g && S.settings.waterGoal ? (S.settings.waterGoal / 1000).toFixed(1).replace(".", ",") : "0")} l</span></span>
       </div>
+      <button class="btn btn-p wide" style="margin-top:14px" data-act="ai-week">${tr("Tjedni AI pregled")}</button>
     </div>
 
     <div class="card p16 mb14">
@@ -1030,24 +1141,75 @@ function sheetIngredient(x) {
   </div>`;
 }
 
-function sheetImport(kind) {
-  const help = kind === "ing"
-    ? tr('Zalijepi JSON niz namirnica. Primjer: [{"name":"Skyr","state":"as_sold","kcal":63,"p":11,"c":4,"f":0.2}]')
-    : kind === "rec"
-      ? tr("Zalijepi JSON niz recepata. Dodaju se postojećima — ništa se ne briše.")
-      : tr("Zalijepi sadržaj preuzete kopije. Prepisuje namirnice, recepte, ciljeve i dnevnike.");
-  const title = kind === "ing" ? tr("Uvoz namirnica") : kind === "rec" ? tr("Uvoz recepata") : tr("Vrati kopiju");
+const escTa = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function sheetImport(s) {
+  const kind = s.kind;
+  const titles = { ing: tr("Uvoz namirnica"), rec: tr("Uvoz recepata"), train: tr("Uvoz treninga"), plate: tr("Jelo iz slike"), all: tr("Vrati kopiju") };
+  const helps = {
+    ing: tr('Zalijepi JSON niz namirnica, ili analiziraj sliku deklaracije (makroi na 100 g).'),
+    rec: tr("Zalijepi JSON niz recepata, ili analiziraj sliku recepta."),
+    train: tr("Analiziraj sliku plana treninga, pa pregledaj i uvezi."),
+    plate: tr("Analiziraj sliku tanjura — AI procijeni makrose i doda obrok danas. Procjena, pregledaj prije uvoza."),
+    all: tr("Zalijepi sadržaj preuzete kopije. Prepisuje namirnice, recepte, ciljeve i dnevnike."),
+  };
+  const canImage = kind !== "all";
+  const vision = aiPreset(S.settings.ai || {}).vision;
+  const imageBlock = canImage ? `
+    <input type="file" id="imp_img" accept="image/*" style="display:none">
+    ${vision ? "" : `<p class="note" style="color:var(--amber)">${tr("Odabrani AI model ne podržava slike.")}</p>`}
+    <div class="row" style="gap:8px;margin-bottom:10px">
+      <button class="btn grow" data-act="pick-image"${vision ? "" : " disabled"}>${s.imgData ? tr("Promijeni sliku") : tr("Iz slike")}</button>
+      ${s.imgData ? `<button class="btn btn-p grow" data-act="ai-image" data-kind="${kind}"${s.aiBusy ? " disabled" : ""}>${s.aiBusy ? tr("Analiziram…") : tr("Analiziraj sliku")}</button>` : ""}
+    </div>
+    ${s.imgData ? `<img src="${s.imgData}" alt="" style="max-height:120px;border-radius:8px;margin-bottom:10px;display:block">` : ""}
+    ${s.aiErr ? `<div class="err" style="margin-bottom:8px">${esc(s.aiErr)}</div>` : ""}
+  ` : "";
   return `
   <div class="sheet-in">
     <div class="row spread mb12">
-      <h2>${title}</h2>
+      <h2>${titles[kind]}</h2>
       <button class="btn btn-g sm" data-act="close">${tr("Zatvori")}</button>
     </div>
-    <p class="note">${help}</p>
-    <textarea id="imp_txt" rows="8" placeholder="[ … ]" style="font-size:13px"></textarea>
+    <p class="note">${helps[kind]}</p>
+    ${imageBlock}
+    <textarea id="imp_txt" rows="8" placeholder="[ … ]" style="font-size:13px">${escTa(s.jsonText)}</textarea>
     <div id="imp_err" class="err"></div>
     <button class="btn btn-p wide" style="margin-top:12px" data-act="do-import" data-kind="${kind}">${tr("Uvezi")}</button>
   </div>`;
+}
+
+function sheetAiWeek(s) {
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb12">
+      <h2>${tr("Tjedni AI pregled")}</h2>
+      <button class="btn btn-g sm" data-act="close">${tr("Zatvori")}</button>
+    </div>
+    ${s.busy
+      ? `<p class="note">${tr("Analiziram tjedan…")}</p>`
+      : s.err
+        ? `<div class="err">${esc(s.err)}</div>`
+        : `<div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(s.text || "")}</div>`}
+  </div>`;
+}
+
+/* Smanji sliku prije slanja (payload/cijena). cb dobije novi data URL. */
+function downscaleImage(dataUrl, maxDim, cb) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width, h = img.height;
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    w = Math.round(w * scale); h = Math.round(h * scale);
+    try {
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      cb(cv.toDataURL("image/jpeg", 0.85));
+    } catch (e) { cb(dataUrl); }
+  };
+  img.onerror = () => cb(dataUrl);
+  img.src = dataUrl;
 }
 
 /* ---------- render ---------- */
@@ -1105,7 +1267,8 @@ function renderSheet() {
   else if (s.type === "recipe-edit") inner = sheetRecipeEdit(s.recipe);
   else if (s.type === "ingredient") inner = sheetIngredient(s.ing);
   else if (s.type === "meal-edit") inner = sheetMealEdit(s.meal);
-  else if (s.type === "import") inner = sheetImport(s.kind);
+  else if (s.type === "import") inner = sheetImport(s);
+  else if (s.type === "ai-week") inner = sheetAiWeek(s);
   else if (s.type === "scan") inner = sheetScan();
   else if (s.type === "sync") inner = sheetSync();
   host.innerHTML = inner;
@@ -1135,6 +1298,39 @@ document.addEventListener("click", (e) => {
   if (a === "close") { S.sheet = null; renderSheet(); return; }
 
   if (a === "set-lang") { S.settings.lang = el.dataset.lang; saveData(); render(); return; }
+
+  if (a === "set-ai-provider") { saveAiFromInputs(el.dataset.provider); render(); return; }
+  if (a === "save-ai") { saveAiFromInputs(); toast(tr("AI postavke spremljene")); render(); return; }
+
+  if (a === "ai-week") {
+    if (!aiConfigured()) { toast(tr("Postavi AI ključ u tabu Više.")); return; }
+    S.sheet = { type: "ai-week", busy: true }; renderSheet();
+    aiCall({ system: weeklySystemPrompt(curLang()), text: aiWeekData(), maxTokens: 1200 })
+      .then((txt) => { if (S.sheet && S.sheet.type === "ai-week") { S.sheet.busy = false; S.sheet.text = txt; renderSheet(); } })
+      .catch((e) => { if (S.sheet && S.sheet.type === "ai-week") { S.sheet.busy = false; S.sheet.err = String((e && e.message) || e); renderSheet(); } });
+    return;
+  }
+
+  if (a === "import-train") { S.sheet = { type: "import", kind: "train" }; renderSheet(); return; }
+  if (a === "import-plate") { S.sheet = { type: "import", kind: "plate" }; renderSheet(); return; }
+
+  if (a === "pick-image") { const inp = $("#imp_img"); if (inp) inp.click(); return; }
+  if (a === "ai-image") {
+    if (!aiConfigured()) { toast(tr("Postavi AI ključ u tabu Više.")); return; }
+    if (!S.sheet || !S.sheet.imgData) return;
+    const kind = el.dataset.kind;
+    S.sheet.aiBusy = true; S.sheet.aiErr = ""; renderSheet();
+    runImageExtract(kind)
+      .then((r) => {
+        if (!S.sheet || S.sheet.type !== "import") return;
+        S.sheet.aiBusy = false;
+        if (r.json !== undefined) S.sheet.jsonText = JSON.stringify(r.json, null, 2);
+        else { S.sheet.jsonText = r.raw; S.sheet.aiErr = tr("AI nije vratio čist JSON — pregledaj i po potrebi ispravi."); }
+        renderSheet();
+      })
+      .catch((e) => { if (S.sheet && S.sheet.type === "import") { S.sheet.aiBusy = false; S.sheet.aiErr = String((e && e.message) || e); renderSheet(); } });
+    return;
+  }
 
   if (a === "confirm-cancel") { S.sheet = null; renderSheet(); return; }
   if (a === "confirm-ok") { const fn = S.sheet && S.sheet.ok; S.sheet = null; if (fn) fn(); else render(); return; }
@@ -1428,6 +1624,42 @@ document.addEventListener("click", (e) => {
       });
       if (!added) { if (!$("#imp_err").textContent) $("#imp_err").textContent = tr("Nijedan recept nije prepoznat."); return; }
       saveData(); toast(tr("Dodano recepata: {n}", { n: added }));
+    } else if (el.dataset.kind === "train") {
+      if (!S.training) { $("#imp_err").textContent = tr("Trening modul nije učitan."); return; }
+      // Toleriraj razne oblike koje modeli vrate: {title,exercises:[...]} (ravno),
+      // stari {template:{title,exercises:[...]}}, ili goli niz vježbi.
+      let title = "", rowsIn = [];
+      if (Array.isArray(obj)) rowsIn = obj;
+      else if (Array.isArray(obj.exercises)) { title = obj.title || ""; rowsIn = obj.exercises; }
+      else if (obj.template && Array.isArray(obj.template.exercises)) { title = obj.template.title || obj.title || ""; rowsIn = obj.template.exercises; }
+      if (!rowsIn.length) { $("#imp_err").textContent = tr("Nijedna vježba nije prepoznata."); return; }
+      const findEx = (nm) => S.training.exercises.find((e2) => e2.name.trim().toLowerCase() === String(nm).trim().toLowerCase());
+      const arr = (x) => (Array.isArray(x) ? x.map(String) : []);
+      const rows = rowsIn.map((rr, i) => {
+        const nm = String(rr.name || rr.exercise || tr("vježba"));
+        let ex = findEx(nm);
+        if (!ex) { ex = { id: uid("ex"), name: nm, muscles: arr(rr.muscles), equipment: arr(rr.equipment) }; S.training.exercises.push(ex); }
+        // Serije: niz {reps,weight}, ili targetSets, ili ravno sets(broj)+reps+weight.
+        let sets;
+        const src = Array.isArray(rr.sets) ? rr.sets : Array.isArray(rr.targetSets) ? rr.targetSets : null;
+        if (src && src.length) {
+          sets = src.map((z) => ({ reps: Math.max(1, Math.round(num(z.reps, 5)) || 1), weight: num(z.weight, 0) }));
+        } else {
+          const n = Math.max(1, Math.round(num(rr.sets, 3)) || 3);
+          const reps = Math.max(1, Math.round(num(rr.reps, 5)) || 1);
+          const wt = num(rr.weight, 0);
+          sets = Array.from({ length: n }, () => ({ reps: reps, weight: wt }));
+        }
+        return { exerciseId: ex.id, order: i, restSeconds: Math.max(0, Math.round(num(rr.restSeconds, 90))), targetSets: sets };
+      });
+      S.training.templates.push({ id: uid("tpl"), title: String(title || tr("Uvezeni trening")), exercises: rows });
+      if (typeof saveTraining === "function") saveTraining();
+      toast(tr("Trening uvezen"));
+    } else if (el.dataset.kind === "plate") {
+      const slotIds = SLOTS.map((sl) => sl.id);
+      const slot = slotIds.indexOf(obj.slot) >= 0 ? obj.slot : "uzina";
+      today().meals.push({ id: uid("m"), slot: slot, name: String(obj.name || tr("Jelo")), servings: 1, kcal: num(obj.kcal, 0), p: num(obj.p, 0), c: num(obj.c, 0), f: num(obj.f, 0) });
+      saveLogs(); toast(tr("Obrok dodan"));
     } else {
       if (obj.ingredients) S.ingredients = obj.ingredients;
       if (obj.recipes) S.recipes = obj.recipes;
@@ -1521,6 +1753,18 @@ consumeAuthHash().then((came) => {
   if (SYNC.cfg && SYNC.cfg.access_token) syncNow();
 });
 if (typeof window !== "undefined" && typeof window.onTrainingReady === "function") window.onTrainingReady();
+/* Odabir slike za AI unos — smanji pa spremi na trenutni import sheet. */
+document.addEventListener("change", (e) => {
+  if (!e.target || e.target.id !== "imp_img") return;
+  const f = e.target.files && e.target.files[0];
+  if (!f || !S.sheet || S.sheet.type !== "import") return;
+  const rd = new FileReader();
+  rd.onload = () => downscaleImage(rd.result, 1280, (out) => {
+    if (S.sheet && S.sheet.type === "import") { S.sheet.imgData = out; S.sheet.aiErr = ""; renderSheet(); }
+  });
+  rd.readAsDataURL(f);
+});
+
 window.addEventListener("online", () => syncNow());
 
 if ("serviceWorker" in navigator) {

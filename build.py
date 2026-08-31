@@ -30,6 +30,7 @@ def build() -> int:
     # (registrira se sam na kraju, kad je start gotov i #nav je u DOM-u).
     parts = [
         read("i18n.js"),
+        read("ai.js"),
         read("training-calc.js"),
         read("training-seed.js"),
         read("seed.js"),
