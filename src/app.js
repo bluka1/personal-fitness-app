@@ -257,7 +257,7 @@ function viewDanas() {
       </div>
       ${meals.map((m) => `
         <div class="row spread meal">
-          <div style="min-width:0;flex:1">
+          <div style="min-width:0;flex:1;cursor:pointer" data-act="edit-meal" data-id="${m.id}">
             <div class="ellip">${esc(m.name)}${m.servings !== 1 ? ` <span class="mut">×${m.servings}</span>` : ""}</div>
             <div class="num sub2">${r0(m.kcal * m.servings)} kcal · ${r0(m.p * m.servings)}P · ${r0(m.c * m.servings)}UH · ${r0(m.f * m.servings)}M</div>
           </div>
@@ -578,8 +578,10 @@ function sheetRecipeEdit(r) {
 }
 
 function scanSupport() {
-  if ("BarcodeDetector" in window) return "native";
+  // zxing prije native: native BarcodeDetector zna postojati u window-u ali
+  // baca u detect() (macOS/desktop Chrome, dio Androida) — kamera radi, čitanje ne.
   if (window.ZXing && navigator.mediaDevices) return "zxing";
+  if ("BarcodeDetector" in window) return "native";
   return "none";
 }
 
@@ -847,7 +849,7 @@ async function startCam() {
     zxReader = new window.ZXing.BrowserMultiFormatReader(hints, 300);
     try {
       await zxReader.decodeFromConstraints(
-        { video: { facingMode: "environment" } },
+        { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
         video,
         (result) => {
           if (!result) return;
@@ -939,6 +941,21 @@ async function offLookup(code) {
     partial: kcal === null || prot === null || carb === null || fat === null,
   };
   renderSheet();
+}
+
+function sheetMealEdit(m) {
+  const isIng = !!m.base; // stari zapisi bez base -> edit porcija (fallback)
+  return `
+  <div class="sheet-in">
+    <div class="row spread mb14">
+      <h2>Uredi unos</h2>
+      <button class="btn btn-g sm" data-act="close">Odustani</button>
+    </div>
+    <div class="ellip" style="font-weight:500;margin-bottom:12px">${esc(isIng ? m.iname : m.name)}</div>
+    <label class="eyebrow">${isIng ? "Gramaža (g)" : "Broj porcija"}</label>
+    <input inputmode="decimal" id="me_q" value="${isIng ? m.g : m.servings}" style="margin:6px 0 14px">
+    <button class="btn btn-p wide" data-act="meal-save" data-id="${m.id}">Spremi</button>
+  </div>`;
 }
 
 function sheetIngredient(x) {
@@ -1043,6 +1060,7 @@ function renderSheet() {
   else if (s.type === "recipe-view") inner = sheetRecipeView(s.recipe);
   else if (s.type === "recipe-edit") inner = sheetRecipeEdit(s.recipe);
   else if (s.type === "ingredient") inner = sheetIngredient(s.ing);
+  else if (s.type === "meal-edit") inner = sheetMealEdit(s.meal);
   else if (s.type === "import") inner = sheetImport(s.kind);
   else if (s.type === "scan") inner = sheetScan();
   else if (s.type === "sync") inner = sheetSync();
@@ -1094,6 +1112,26 @@ document.addEventListener("click", (e) => {
     log.meals = log.meals.filter((m) => m.id !== el.dataset.id);
     saveLogs(); render(); return;
   }
+  if (a === "edit-meal") {
+    const m = today().meals.find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    S.sheet = { type: "meal-edit", meal: m }; renderSheet(); return;
+  }
+  if (a === "meal-save") {
+    const m = today().meals.find((x) => x.id === el.dataset.id);
+    if (!m) { S.sheet = null; renderSheet(); return; }
+    const q = num($("#me_q").value, 0);
+    if (!q || q <= 0) { toast("Upiši broj veći od 0"); return; }
+    if (m.base) {
+      const k = q / 100;
+      m.g = q;
+      m.kcal = m.base.kcal * k; m.p = m.base.p * k; m.c = m.base.c * k; m.f = m.base.f * k;
+      m.name = m.iname + " (" + q + " g)";
+    } else {
+      m.servings = q;
+    }
+    saveLogs(); S.sheet = null; render(); return;
+  }
 
   if (a === "pick") { S.sheet = { type: "picker", slot: el.dataset.slot }; renderSheet(); return; }
   if (a === "srv") {
@@ -1126,6 +1164,8 @@ document.addEventListener("click", (e) => {
     today().meals.push({
       id: uid("m"), slot: el.dataset.slot, name: ing.name + " (" + g + " g)", servings: 1,
       kcal: ing.kcal * k, p: ing.p * k, c: ing.c * k, f: ing.f * k,
+      // base = makroi/100 g + osnovno ime: omogućuje edit gramaže poslije.
+      iname: ing.name, g: g, base: { kcal: ing.kcal, p: ing.p, c: ing.c, f: ing.f },
     });
     saveLogs(); S.sheet = null; render(); return;
   }
