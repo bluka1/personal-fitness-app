@@ -332,8 +332,6 @@ function viewDanas() {
       </div>
     </div>
 
-    <button class="btn wide mb14" data-act="import-plate">${tr("Dodaj jelo iz slike")}</button>
-
     <div class="card p16 mb14">
       <div class="row spread mb12">
         <span class="eyebrow">${tr("Voda")}</span>
@@ -373,6 +371,8 @@ function viewDanas() {
         </div>`).join("")}
     </div>`;
   });
+
+  html += `<button class="btn wide mb14" data-act="import-plate"${aiConfigured() ? "" : " disabled"}>${tr("Dodaj jelo iz slike")}</button>`;
 
   /* Trening modul (ako je učitan) dodaje današnji raspored ispod obroka. */
   if (typeof trainingDanasSection === "function") html += trainingDanasSection();
@@ -512,7 +512,7 @@ function viewVise() {
         <span class="eyebrow">${tr("Prosječna voda")}</span>
         <span class="num" style="font-size:15px;font-weight:700">${wDays.length ? (avgWater / 1000).toFixed(2).replace(".", ",") + " l" : "–"}<span class="mut" style="font-size:11px;font-weight:400"> / ${(g && S.settings.waterGoal ? (S.settings.waterGoal / 1000).toFixed(1).replace(".", ",") : "0")} l</span></span>
       </div>
-      <button class="btn btn-p wide" style="margin-top:14px" data-act="ai-week">${tr("Tjedni AI pregled")}</button>
+      <button class="btn btn-p wide" style="margin-top:14px" data-act="ai-week"${aiConfigured() ? "" : " disabled"}>${tr("Tjedni AI pregled")}</button>
     </div>
 
     <div class="card p16 mb14">
@@ -1155,12 +1155,13 @@ function sheetImport(s) {
   };
   const canImage = kind !== "all";
   const vision = aiPreset(S.settings.ai || {}).vision;
+  const ready = vision && aiConfigured();
   const imageBlock = canImage ? `
     <input type="file" id="imp_img" accept="image/*" style="display:none">
-    ${vision ? "" : `<p class="note" style="color:var(--amber)">${tr("Odabrani AI model ne podržava slike.")}</p>`}
+    ${aiConfigured() ? (vision ? "" : `<p class="note" style="color:var(--amber)">${tr("Odabrani AI model ne podržava slike.")}</p>`) : `<p class="note" style="color:var(--amber)">${tr("Postavi AI ključ u tabu Više.")}</p>`}
     <div class="row" style="gap:8px;margin-bottom:10px">
-      <button class="btn grow" data-act="pick-image"${vision ? "" : " disabled"}>${s.imgData ? tr("Promijeni sliku") : tr("Iz slike")}</button>
-      ${s.imgData ? `<button class="btn btn-p grow" data-act="ai-image" data-kind="${kind}"${s.aiBusy ? " disabled" : ""}>${s.aiBusy ? tr("Analiziram…") : tr("Analiziraj sliku")}</button>` : ""}
+      <button class="btn grow" data-act="pick-image"${ready ? "" : " disabled"}>${s.imgData ? tr("Promijeni sliku") : tr("Iz slike")}</button>
+      ${s.imgData ? `<button class="btn btn-p grow" data-act="ai-image" data-kind="${kind}"${ready && !s.aiBusy ? "" : " disabled"}>${s.aiBusy ? tr("Analiziram…") : tr("Analiziraj sliku")}</button>` : ""}
     </div>
     ${s.imgData ? `<img src="${s.imgData}" alt="" style="max-height:120px;border-radius:8px;margin-bottom:10px;display:block">` : ""}
     ${s.aiErr ? `<div class="err" style="margin-bottom:8px">${esc(s.aiErr)}</div>` : ""}

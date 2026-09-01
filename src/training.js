@@ -388,7 +388,7 @@ function paneLog(active) {
     <div class="row spread mb10" style="margin-top:4px">
       <span class="eyebrow">${tr("Predlošci")}</span>
       <div class="row" style="gap:6px">
-        <button class="btn btn-g sm" data-act="import-train">${tr("Iz slike")}</button>
+        <button class="btn btn-g sm" data-act="import-train"${typeof aiConfigured === "function" && aiConfigured() ? "" : " disabled"}>${tr("Iz slike")}</button>
         <button class="btn btn-p sm" data-act="t-new-tpl">${tr("Novi predložak")}</button>
       </div>
     </div>`;

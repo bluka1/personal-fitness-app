@@ -11,7 +11,7 @@ const AI_PRESETS = {
   kimi: { kind: "openai", baseURL: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k-vision-preview", vision: true },
   openrouter: { kind: "openai", baseURL: "https://openrouter.ai/api/v1", model: "google/gemma-4-31b-it:free", vision: true },
 };
-const AI_PROVIDER_LABELS = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT)", deepseek: "DeepSeek", glm: "GLM (Zhipu)", kimi: "Kimi (Moonshot)", openrouter: "OpenRouter" };
+const AI_PROVIDER_LABELS = { anthropic: "Claude", openai: "GPT", deepseek: "DeepSeek", glm: "GLM", kimi: "Kimi", openrouter: "OpenRouter" };
 
 /* Spoji preset + korisnički override (model/baseURL). Prazan override = preset default. */
 function aiPreset(cfg) {
