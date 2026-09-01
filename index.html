@@ -243,6 +243,16 @@ const I18N = {
     'Uzmi s oblaka': `Pull from cloud`,
     'Pošalji moje': `Push mine`,
     'Izjednači sada': `Sync now`,
+    'Podaci se sinkroniziraju preko tvog Cloudflare workera. Lokalno spremanje ostaje — aplikacija radi i bez interneta.': `Data syncs through your own Cloudflare worker. Local storage stays — the app works offline.`,
+    'Worker URL': `Worker URL`,
+    'Tajna fraza': `Secret phrase`,
+    'barem 8 znakova': `at least 8 characters`,
+    'Ista fraza na svim uređajima povezuje podatke. Čuvaj je — tko je zna, vidi tvoje podatke.': `The same phrase on every device links the data. Keep it secret — anyone who knows it can see your data.`,
+    'Isključi sinkronizaciju': `Turn off sync`,
+    'Postavljanje workera: vidi cloudflare-worker.js u repozitoriju. Deployaš ga jednom na svoj Cloudflare, upišeš URL i frazu ovdje.': `Worker setup: see cloudflare-worker.js in the repo. Deploy it once to your own Cloudflare, then enter the URL and phrase here.`,
+    'Upiši Worker URL i frazu.': `Enter the Worker URL and phrase.`,
+    'Fraza mora imati barem 8 znakova.': `The phrase must be at least 8 characters.`,
+    'Sinkronizacija isključena': `Sync turned off`,
     'Odjavi se s ovog uređaja': `Sign out on this device`,
     'Podaci će se spremati i u tvoju Supabase bazu, pa ih vidiš i na računalu. Lokalno spremanje ostaje — aplikacija radi i bez interneta.': `Data will also be saved to your Supabase database, so you can see it on your computer too. Local storage stays — the app works offline.`,
     'Supabase URL': `Supabase URL`,
@@ -527,6 +537,16 @@ const I18N = {
     'Uzmi s oblaka': `Aus Cloud holen`,
     'Pošalji moje': `Meine senden`,
     'Izjednači sada': `Jetzt abgleichen`,
+    'Podaci se sinkroniziraju preko tvog Cloudflare workera. Lokalno spremanje ostaje — aplikacija radi i bez interneta.': `Die Daten werden über deinen eigenen Cloudflare-Worker synchronisiert. Die lokale Speicherung bleibt — die App funktioniert auch offline.`,
+    'Worker URL': `Worker-URL`,
+    'Tajna fraza': `Geheime Phrase`,
+    'barem 8 znakova': `mindestens 8 Zeichen`,
+    'Ista fraza na svim uređajima povezuje podatke. Čuvaj je — tko je zna, vidi tvoje podatke.': `Dieselbe Phrase auf allen Geräten verknüpft die Daten. Halte sie geheim — wer sie kennt, sieht deine Daten.`,
+    'Isključi sinkronizaciju': `Synchronisierung ausschalten`,
+    'Postavljanje workera: vidi cloudflare-worker.js u repozitoriju. Deployaš ga jednom na svoj Cloudflare, upišeš URL i frazu ovdje.': `Worker-Einrichtung: siehe cloudflare-worker.js im Repository. Einmal auf deinem eigenen Cloudflare deployen, dann URL und Phrase hier eingeben.`,
+    'Upiši Worker URL i frazu.': `Gib die Worker-URL und die Phrase ein.`,
+    'Fraza mora imati barem 8 znakova.': `Die Phrase muss mindestens 8 Zeichen haben.`,
+    'Sinkronizacija isključena': `Synchronisierung ausgeschaltet`,
     'Odjavi se s ovog uređaja': `Auf diesem Gerät abmelden`,
     'Podaci će se spremati i u tvoju Supabase bazu, pa ih vidiš i na računalu. Lokalno spremanje ostaje — aplikacija radi i bez interneta.': `Daten werden auch in deiner Supabase-Datenbank gespeichert, sodass du sie auch am Computer siehst. Die lokale Speicherung bleibt — die App funktioniert auch offline.`,
     'Supabase URL': `Supabase URL`,
@@ -2033,8 +2053,10 @@ function scanSupport() {
 }
 
 /* ============================================================
-   Sinkronizacija (Supabase). Lokalno je i dalje glavno —
-   ovo je sloj iznad koji izjednačava uređaje.
+   Sinkronizacija (Cloudflare Worker + KV). Lokalno je i dalje
+   glavno — ovo je sloj iznad koji izjednačava uređaje. Auth =
+   tajna fraza u headeru x-sync-secret; worker njome namespacea
+   KV ključ, pa ista fraza = isti podaci. Worker: cloudflare-worker.js.
    ============================================================ */
 
 const K_SYNC = "obroci_sync";
@@ -2042,9 +2064,11 @@ const K_STAMP = "obroci_updated";
 
 const SYNC = { cfg: null, status: "off", msg: "", busy: false, timer: null };
 
+function syncReady() { return !!(SYNC.cfg && SYNC.cfg.url && SYNC.cfg.secret); }
+
 function loadSync() {
   SYNC.cfg = readLS(K_SYNC, null);
-  SYNC.status = SYNC.cfg && SYNC.cfg.access_token ? "idle" : (SYNC.cfg && SYNC.cfg.url ? "auth" : "off");
+  SYNC.status = syncReady() ? "idle" : "off";
 }
 function saveSync() { writeLS(K_SYNC, SYNC.cfg); }
 
@@ -2054,7 +2078,6 @@ function bumpStamp() { localStorage.setItem(K_STAMP, String(Date.now())); }
 function syncStatusText() {
   if (SYNC.msg) return SYNC.msg;
   if (SYNC.status === "off") return tr("Isključena — podaci su samo na ovom uređaju");
-  if (SYNC.status === "auth") return tr("Postavljena, ali nisi prijavljen");
   const t = localStamp();
   return t ? tr("Zadnja promjena {when}", { when: new Date(t).toLocaleString("hr-HR") }) : tr("Spremna");
 }
@@ -2066,47 +2089,18 @@ function setSyncMsg(m, keep) {
   if (!keep) setTimeout(() => { SYNC.msg = ""; const e2 = document.getElementById("sync_status"); if (e2) e2.textContent = syncStatusText(); }, 4000);
 }
 
-async function sbAuth(path, body) {
+/* Jedan poziv prema workeru: GET vrati spremljeni blob (null ako prazan),
+   PUT ga zapiše. Fraza ide u x-sync-secret. */
+async function workerFetch(method, body) {
   const c = SYNC.cfg;
-  const res = await fetch(c.url.replace(/\/+$/, "") + "/auth/v1/" + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", apikey: c.anon },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error_description || json.msg || json.message || ("HTTP " + res.status));
-  return json;
-}
-
-async function ensureToken() {
-  const c = SYNC.cfg;
-  if (!c || !c.access_token) throw new Error(tr("Nisi prijavljen"));
-  if (c.expires_at && Date.now() < c.expires_at - 60000) return c.access_token;
-  const j = await sbAuth("token?grant_type=refresh_token", { refresh_token: c.refresh_token });
-  c.access_token = j.access_token;
-  c.refresh_token = j.refresh_token || c.refresh_token;
-  c.expires_at = Date.now() + (j.expires_in || 3600) * 1000;
-  saveSync();
-  return c.access_token;
-}
-
-async function sbRest(method, query, body) {
-  const c = SYNC.cfg;
-  const token = await ensureToken();
-  const headers = {
-    apikey: c.anon,
-    Authorization: "Bearer " + token,
-    "Content-Type": "application/json",
-  };
-  if (method === "POST") headers.Prefer = "resolution=merge-duplicates,return=representation";
-  const res = await fetch(c.url.replace(/\/+$/, "") + "/rest/v1/" + query, {
+  const res = await fetch(c.url.replace(/\/+$/, "") + "/", {
     method: method,
-    headers: headers,
+    headers: { "content-type": "application/json", "x-sync-secret": c.secret },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((json && (json.message || json.hint)) || ("HTTP " + res.status));
-  return json;
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return method === "GET" ? await res.json().catch(() => null) : null;
 }
 
 function currentPayload() {
@@ -2127,19 +2121,13 @@ function adoptPayload(p) {
   localStorage.setItem(K_STAMP, String(p.updatedAt || Date.now()));
 }
 
-async function pushRemote() {
-  const c = SYNC.cfg;
-  await sbRest("POST", "obroci_state", [{ user_id: c.user_id, data: currentPayload(), updated_at: new Date().toISOString() }]);
-}
+async function pushRemote() { await workerFetch("PUT", currentPayload()); }
 
-async function pullRemote() {
-  const rows = await sbRest("GET", "obroci_state?select=data");
-  return rows && rows.length ? rows[0].data : null;
-}
+async function pullRemote() { return await workerFetch("GET"); }
 
 /* Novije pobjeđuje. Za jednog korisnika s par uređaja to je dovoljno. */
 async function syncNow(force) {
-  if (!SYNC.cfg || !SYNC.cfg.access_token || SYNC.busy) return;
+  if (!syncReady() || SYNC.busy) return;
   SYNC.busy = true;
   setSyncMsg(tr("Sinkroniziram…"), true);
   try {
@@ -2163,75 +2151,39 @@ async function syncNow(force) {
 }
 
 function scheduleSync() {
-  if (!SYNC.cfg || !SYNC.cfg.access_token) return;
+  if (!syncReady()) return;
   clearTimeout(SYNC.timer);
   SYNC.timer = setTimeout(() => syncNow(), 3000);
 }
 
-/* Ako se korisnik vratio klikom na link iz e-maila, tokeni dolaze
-   u hashu adrese. Pokupi ih pa očisti adresu. */
-async function consumeAuthHash() {
-  if (!location.hash || location.hash.indexOf("access_token") < 0) return false;
-  if (!SYNC.cfg || !SYNC.cfg.url || !SYNC.cfg.anon) return false;
-  const p = new URLSearchParams(location.hash.slice(1));
-  const at = p.get("access_token");
-  if (!at) return false;
-  SYNC.cfg.access_token = at;
-  SYNC.cfg.refresh_token = p.get("refresh_token") || "";
-  SYNC.cfg.expires_at = Date.now() + (parseInt(p.get("expires_in") || "3600", 10) * 1000);
-  try {
-    const res = await fetch(SYNC.cfg.url.replace(/\/+$/, "") + "/auth/v1/user", {
-      headers: { apikey: SYNC.cfg.anon, Authorization: "Bearer " + at },
-    });
-    const u = await res.json();
-    if (u && u.id) { SYNC.cfg.user_id = u.id; SYNC.cfg.email = u.email || SYNC.cfg.email; }
-  } catch (e) { /* prešuti */ }
-  SYNC.cfg.pending = false;
-  saveSync();
-  SYNC.status = "idle";
-  history.replaceState(null, "", location.pathname + location.search);
-  return true;
-}
-
 function sheetSync() {
   const c = SYNC.cfg || {};
-  const authed = !!c.access_token;
+  const ready = syncReady();
   return `
   <div class="sheet-in">
     <div class="row spread mb12">
       <h2>${tr("Sinkronizacija")}</h2>
       <button class="btn btn-g sm" data-act="close">${tr("Zatvori")}</button>
     </div>
-    ${authed ? `
-      <p class="note">${tr("Prijavljen kao {email}. Podaci se izjednačavaju sa svim uređajima na kojima si prijavljen istim e-mailom.", { email: "<strong>" + esc(c.email || "") + "</strong>" })}</p>
-      <div class="row" style="gap:8px;margin-bottom:10px">
+    <p class="note">${tr("Podaci se sinkroniziraju preko tvog Cloudflare workera. Lokalno spremanje ostaje — aplikacija radi i bez interneta.")}</p>
+    <label class="eyebrow">${tr("Worker URL")}</label>
+    <input id="sy_url" value="${esc(c.url || "")}" placeholder="https://ime.tvoj.workers.dev" style="margin:6px 0 12px" autocomplete="off">
+    <label class="eyebrow">${tr("Tajna fraza")}</label>
+    <input id="sy_secret" type="password" value="${esc(c.secret || "")}" placeholder="${tr('barem 8 znakova')}" style="margin:6px 0 12px" autocomplete="off">
+    <p class="note" style="margin:-4px 0 12px">${tr("Ista fraza na svim uređajima povezuje podatke. Čuvaj je — tko je zna, vidi tvoje podatke.")}</p>
+    <button class="btn btn-p wide" data-act="sync-save">${tr("Spremi")}</button>
+    <div id="sync_msg" class="note" style="margin-top:12px"></div>
+    ${ready ? `
+      <div class="row" style="gap:8px;margin:14px 0 10px">
         <button class="btn grow" data-act="sync-pull">${tr("Uzmi s oblaka")}</button>
         <button class="btn grow" data-act="sync-push">${tr("Pošalji moje")}</button>
       </div>
       <button class="btn btn-p wide" data-act="sync-now">${tr("Izjednači sada")}</button>
-      <div id="sync_msg" class="note" style="margin-top:12px"></div>
-      <button class="btn btn-g wide" style="margin-top:14px" data-act="sync-logout">${tr("Odjavi se s ovog uređaja")}</button>
-    ` : `
-      <p class="note">${tr("Podaci će se spremati i u tvoju Supabase bazu, pa ih vidiš i na računalu. Lokalno spremanje ostaje — aplikacija radi i bez interneta.")}</p>
-      <label class="eyebrow">${tr("Supabase URL")}</label>
-      <input id="sy_url" value="${esc(c.url || "")}" placeholder="https://xxxx.supabase.co" style="margin:6px 0 12px" autocomplete="off">
-      <label class="eyebrow">${tr("Publishable ključ")}</label>
-      <input id="sy_key" value="${esc(c.anon || "")}" placeholder="${tr('sb_publishable_… ili eyJhbGci…')}" style="margin:6px 0 12px" autocomplete="off">
-      <p class="note" style="margin:-4px 0 12px">${tr("Settings → API Keys → Publishable key. Na starijim projektima je to legacy „anon public”. Nikad ne upisuj secret ni service_role ključ.")}</p>
-      <label class="eyebrow">${tr("E-mail")}</label>
-      <input id="sy_mail" type="email" value="${esc(c.email || "")}" placeholder="ti@primjer.hr" style="margin:6px 0 12px" autocomplete="email">
-      <button class="btn btn-p wide" data-act="sync-code">${tr("Pošalji mi kod")}</button>
-      <p class="note" style="margin-top:10px">${tr("Ako u e-mailu dobiješ samo link umjesto koda: u Supabaseu pod Authentication → Emails dodaj {token} u predloške „Magic Link” i „Confirm signup”. Klik na link također radi ako ga otvoriš na ovom uređaju.", { token: "<strong>{{ .Token }}</strong>" })}</p>
-      <div id="sync_msg" class="note" style="margin-top:12px"></div>
-      <div id="sync_step2" style="display:${c.pending ? "block" : "none"};margin-top:12px">
-        <label class="eyebrow">${tr("Kod iz e-maila")}</label>
-        <input id="sy_code" inputmode="numeric" placeholder="${tr('6 znamenki')}" style="margin:6px 0 12px" autocomplete="one-time-code">
-        <button class="btn btn-p wide" data-act="sync-verify">${tr("Potvrdi")}</button>
-      </div>
-      <p class="note" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ln)">
-        ${tr("Prijava ide bez lozinke — dobiješ šesteroznamenkasti kod na e-mail. Pristupni token ostaje u pregledniku ovog uređaja.")}
-      </p>
-    `}
+      <button class="btn btn-g wide" style="margin-top:14px" data-act="sync-disable">${tr("Isključi sinkronizaciju")}</button>
+    ` : ""}
+    <p class="note" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ln)">
+      ${tr("Postavljanje workera: vidi cloudflare-worker.js u repozitoriju. Deployaš ga jednom na svoj Cloudflare, upišeš URL i frazu ovdje.")}
+    </p>
   </div>`;
 }
 
@@ -2785,46 +2737,22 @@ document.addEventListener("click", (e) => {
   }
 
   if (a === "sync-open") { S.sheet = { type: "sync" }; renderSheet(); return; }
-  if (a === "sync-code") {
+  if (a === "sync-save") {
     const url = $("#sy_url").value.trim();
-    const anon = $("#sy_key").value.trim();
-    const email = $("#sy_mail").value.trim();
-    if (!url || !anon || !email) { syncMsg(tr("Popuni sva tri polja.")); return; }
-    if (/^sb_secret_/.test(anon) || /service_role/.test(anon)) {
-      syncMsg(tr("To je serverski ključ i ne smije u preglednik. Uzmi Publishable (ili anon) ključ."));
-      return;
-    }
-    SYNC.cfg = Object.assign({}, SYNC.cfg, { url: url, anon: anon, email: email, pending: true });
+    const secret = $("#sy_secret").value.trim();
+    if (!url || !secret) { syncMsg(tr("Upiši Worker URL i frazu.")); return; }
+    if (secret.length < 8) { syncMsg(tr("Fraza mora imati barem 8 znakova.")); return; }
+    SYNC.cfg = { url: url, secret: secret };
     saveSync();
-    syncMsg(tr("Šaljem kod…"));
-    sbAuth("otp?redirect_to=" + encodeURIComponent(location.origin + location.pathname), { email: email, create_user: true })
-      .then(() => {
-        syncMsg(tr("Kod je poslan na {email}. Provjeri i spam.", { email: email }));
-        const st = document.getElementById("sync_step2");
-        if (st) st.style.display = "block";
-      })
-      .catch((err) => syncMsg(tr("Ne mogu poslati kod: {err}", { err: String(err.message || err).slice(0, 70) })));
+    SYNC.status = "idle";
+    render();
+    syncMsg(tr("Spremljeno"));
+    syncNow().then(() => syncMsg(syncStatusText()));
     return;
   }
-  if (a === "sync-verify") {
-    const code = $("#sy_code").value.trim();
-    if (!code) { syncMsg(tr("Upiši kod iz e-maila.")); return; }
-    syncMsg(tr("Provjeravam…"));
-    sbAuth("verify", { email: SYNC.cfg.email, token: code, type: "email" })
-      .then((j) => {
-        SYNC.cfg.access_token = j.access_token;
-        SYNC.cfg.refresh_token = j.refresh_token;
-        SYNC.cfg.expires_at = Date.now() + (j.expires_in || 3600) * 1000;
-        SYNC.cfg.user_id = j.user && j.user.id;
-        SYNC.cfg.pending = false;
-        saveSync();
-        SYNC.status = "idle";
-        S.sheet = null;
-        render();
-        toast(tr("Prijavljen"));
-        syncNow();
-      })
-      .catch((err) => syncMsg(tr("Kod nije prihvaćen: {err}", { err: String(err.message || err).slice(0, 70) })));
+  if (a === "sync-disable") {
+    SYNC.cfg = null; saveSync(); SYNC.status = "off"; S.sheet = null; render();
+    toast(tr("Sinkronizacija isključena"));
     return;
   }
   if (a === "sync-now") { syncMsg(tr("Sinkroniziram…")); syncNow().then(() => syncMsg(syncStatusText())); return; }
@@ -2838,12 +2766,6 @@ document.addEventListener("click", (e) => {
     }).catch((err) => syncMsg(tr("Greška: {err}", { err: String(err.message || err).slice(0, 70) })));
     return;
   }
-  if (a === "sync-logout") {
-    SYNC.cfg = { url: SYNC.cfg.url, anon: SYNC.cfg.anon, email: SYNC.cfg.email };
-    saveSync(); SYNC.status = "auth"; S.sheet = null; render(); toast(tr("Odjavljen"));
-    return;
-  }
-
   if (a === "scan") { S.sheet = { type: "scan" }; renderSheet(); return; }
   if (a === "off-lookup") { offLookup($("#bc").value); return; }
 
@@ -3059,10 +2981,7 @@ load();
 loadSync();
 render();
 requestPersist();
-consumeAuthHash().then((came) => {
-  if (came) { render(); toast(tr("Prijavljen")); }
-  if (SYNC.cfg && SYNC.cfg.access_token) syncNow();
-});
+if (syncReady()) syncNow();
 if (typeof window !== "undefined" && typeof window.onTrainingReady === "function") window.onTrainingReady();
 /* Odabir slike za AI unos — smanji pa spremi na trenutni import sheet. */
 document.addEventListener("change", (e) => {
