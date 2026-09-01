@@ -768,6 +768,9 @@ window.onTrainingReady = function () {
     nav.insertBefore(btn, vise);
   }
   if (activeSession(S.training)) registerLeaveGuard();
+  /* app.js je već jednom renderirao PRIJE nego što je S.training postojao, pa
+     je današnja sekcija treninga ispala prazna. Sad kad su podaci tu, osvježi. */
+  if (typeof render === "function") render();
 };
 
 /* app.js pokreće start (uklj. onTrainingReady hook) PRIJE nego što je ovaj

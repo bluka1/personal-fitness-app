@@ -2797,7 +2797,7 @@ document.addEventListener("click", (e) => {
     SYNC.cfg = Object.assign({}, SYNC.cfg, { url: url, anon: anon, email: email, pending: true });
     saveSync();
     syncMsg(tr("Šaljem kod…"));
-    sbAuth("otp", { email: email, create_user: true })
+    sbAuth("otp?redirect_to=" + encodeURIComponent(location.origin + location.pathname), { email: email, create_user: true })
       .then(() => {
         syncMsg(tr("Kod je poslan na {email}. Provjeri i spam.", { email: email }));
         const st = document.getElementById("sync_step2");
@@ -3852,6 +3852,9 @@ window.onTrainingReady = function () {
     nav.insertBefore(btn, vise);
   }
   if (activeSession(S.training)) registerLeaveGuard();
+  /* app.js je već jednom renderirao PRIJE nego što je S.training postojao, pa
+     je današnja sekcija treninga ispala prazna. Sad kad su podaci tu, osvježi. */
+  if (typeof render === "function") render();
 };
 
 /* app.js pokreće start (uklj. onTrainingReady hook) PRIJE nego što je ovaj

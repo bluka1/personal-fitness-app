@@ -1487,7 +1487,7 @@ document.addEventListener("click", (e) => {
     SYNC.cfg = Object.assign({}, SYNC.cfg, { url: url, anon: anon, email: email, pending: true });
     saveSync();
     syncMsg(tr("Šaljem kod…"));
-    sbAuth("otp", { email: email, create_user: true })
+    sbAuth("otp?redirect_to=" + encodeURIComponent(location.origin + location.pathname), { email: email, create_user: true })
       .then(() => {
         syncMsg(tr("Kod je poslan na {email}. Provjeri i spam.", { email: email }));
         const st = document.getElementById("sync_step2");
