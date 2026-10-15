@@ -3375,10 +3375,10 @@ function paneKalendar() {
   return `
     <div class="row spread mb10" style="margin-top:4px">
       <button class="btn btn-g sq" data-act="t-cal-prev">‹</button>
-      <span class="dsp" style="font-weight:700">${MJ[m]} ${y}</span>
+      <span class="dsp" style="font-weight:700">${dloc().mon[m]} ${y}</span>
       <button class="btn btn-g sq" data-act="t-cal-next">›</button>
     </div>
-    <div class="tgrid-head">${["P", "U", "S", "Č", "P", "S", "N"].map((x) => `<div class="eyebrow center">${x}</div>`).join("")}</div>
+    <div class="tgrid-head">${[1, 2, 3, 4, 5, 6, 0].map((i) => `<div class="eyebrow center">${wInit(i)}</div>`).join("")}</div>
     <div class="tgrid">${cells}</div>`;
 }
 
@@ -3412,7 +3412,8 @@ function sheetSchedule(date) {
     <div class="row" style="gap:8px">
       <select id="tsch_tpl" style="flex:1;min-width:0">${opts}</select>
       <button class="btn btn-p" data-act="t-schedule-do" data-date="${date}">${tr("Zakaži")}</button>
-    </div>`;
+    </div>
+  </div>`;
 }
 
 /* ---------- Povijest ---------- */
