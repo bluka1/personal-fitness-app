@@ -8,6 +8,8 @@
 
 const I18N = {
   en: {
+    'Trening za {d} nema vježbi.': `Workout for {d} has no exercises.`,
+    'Odrađenih treninga uvezeno: {n}': `Completed workouts imported: {n}`,
     'Kardio': `Cardio`,
     'Snaga': `Strength`,
     'Minute': `Minutes`,
@@ -322,6 +324,8 @@ const I18N = {
     'AI nije vratio čist JSON — pregledaj i po potrebi ispravi.': `AI didn't return clean JSON — review and fix if needed.`,
   },
   de: {
+    'Trening za {d} nema vježbi.': `Training am {d} hat keine Übungen.`,
+    'Odrađenih treninga uvezeno: {n}': `Abgeschlossene Trainings importiert: {n}`,
     'Kardio': `Cardio`,
     'Snaga': `Kraft`,
     'Minute': `Minuten`,

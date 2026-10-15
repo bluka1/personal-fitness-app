@@ -258,3 +258,16 @@ Nepoznata vježba se stvara automatski (kardio ako ima `type:"cardio"`,
 ring je zamijenjen amber borderom, a `#nav` dobiva klasu `kb` (display:none)
 dok je neki input u fokusu — `position:fixed;bottom:0` inače lebdi iznad
 tipkovnice.
+
+**JSON uvoz odrađenog treninga.** Isti uvoz (Trening → Uvezi); ako objekt ima
+`date` (YYYY-MM-DD) ili `status:"completed"`, ne stvara se predložak nego
+završena sesija u Povijesti (`templateId: null`, sve serije `done`). Niz takvih
+objekata = više sesija. Opcionalno `durationMin` i `completedAt` (ISO).
+```json
+{"title":"Street workout 1","date":"2026-10-13","durationMin":45,"exercises":[
+  {"name":"Zgibovi","sets":[{"reps":10,"weight":0},{"reps":9,"weight":0}],"superset":"A"},
+  {"name":"Propadanja","sets":[{"reps":8},{"reps":8}],"superset":"A"},
+  {"name":"Trčanje","type":"cardio","minutes":30,"km":5}
+]}
+```
+

@@ -149,6 +149,8 @@ border-radius:14px;z-index:70;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.
 
 const I18N = {
   en: {
+    'Trening za {d} nema vježbi.': `Workout for {d} has no exercises.`,
+    'Odrađenih treninga uvezeno: {n}': `Completed workouts imported: {n}`,
     'Kardio': `Cardio`,
     'Snaga': `Strength`,
     'Minute': `Minutes`,
@@ -463,6 +465,8 @@ const I18N = {
     'AI nije vratio čist JSON — pregledaj i po potrebi ispravi.': `AI didn't return clean JSON — review and fix if needed.`,
   },
   de: {
+    'Trening za {d} nema vježbi.': `Training am {d} hat keine Übungen.`,
+    'Odrađenih treninga uvezeno: {n}': `Abgeschlossene Trainings importiert: {n}`,
     'Kardio': `Cardio`,
     'Snaga': `Kraft`,
     'Minute': `Minuten`,
@@ -2486,7 +2490,7 @@ function sheetImport(s) {
   const helps = {
     ing: tr('Zalijepi JSON niz namirnica, ili analiziraj sliku deklaracije (makroi na 100 g).'),
     rec: tr("Zalijepi JSON niz recepata, ili analiziraj sliku recepta."),
-    train: tr("Zalijepi JSON treninga ili analiziraj sliku plana. Oblik: {\"title\":\"...\",\"exercises\":[{\"name\":\"Zgibovi\",\"sets\":3,\"reps\":8,\"weight\":0,\"rest\":90,\"superset\":\"A\"},{\"name\":\"Trčanje\",\"type\":\"cardio\",\"minutes\":30,\"km\":5}]}"),
+    train: tr("Zalijepi JSON treninga ili analiziraj sliku plana. Predložak: {\"title\":\"...\",\"exercises\":[{\"name\":\"Zgibovi\",\"sets\":3,\"reps\":8,\"weight\":0,\"rest\":90,\"superset\":\"A\"},{\"name\":\"Trčanje\",\"type\":\"cardio\",\"minutes\":30,\"km\":5}]}. Odrađeni trening: dodaj \"date\":\"2026-10-13\" (i po želji \"durationMin\") te serije kao niz [{\"reps\":10,\"weight\":0}, ...] — ide ravno u Povijest."),
     plate: tr("Analiziraj sliku tanjura — AI procijeni makrose i doda obrok danas. Procjena, pregledaj prije uvoza."),
     all: tr("Zalijepi sadržaj preuzete kopije. Prepisuje namirnice, recepte, ciljeve i dnevnike."),
   };
@@ -2968,14 +2972,12 @@ document.addEventListener("click", (e) => {
       if (!S.training) { $("#imp_err").textContent = tr("Trening modul nije učitan."); return; }
       // Toleriraj razne oblike koje modeli vrate: {title,exercises:[...]} (ravno),
       // stari {template:{title,exercises:[...]}}, ili goli niz vježbi.
-      let title = "", rowsIn = [];
-      if (Array.isArray(obj)) rowsIn = obj;
-      else if (Array.isArray(obj.exercises)) { title = obj.title || ""; rowsIn = obj.exercises; }
-      else if (obj.template && Array.isArray(obj.template.exercises)) { title = obj.template.title || obj.title || ""; rowsIn = obj.template.exercises; }
-      if (!rowsIn.length) { $("#imp_err").textContent = tr("Nijedna vježba nije prepoznata."); return; }
+      // Odrađeni trening: objekt s "date" (ili status:"completed") → završena sesija u Povijesti,
+      // a ne predložak. Niz takvih objekata = više sesija.
+      const isSessionObj = (o) => o && typeof o === "object" && !Array.isArray(o) && (o.date || o.status === "completed" || o.completedAt);
       const findEx = (nm) => S.training.exercises.find((e2) => e2.name.trim().toLowerCase() === String(nm).trim().toLowerCase());
       const arr = (x) => (Array.isArray(x) ? x.map(String) : []);
-      const rows = rowsIn.map((rr, i) => {
+      const parseRows = (rowsIn) => rowsIn.map((rr, i) => {
         const nm = String(rr.name || rr.exercise || tr("vježba"));
         const isCardio = rr.type === "cardio" || rr.minutes != null || rr.km != null;
         let ex = findEx(nm);
@@ -3002,14 +3004,50 @@ document.addEventListener("click", (e) => {
         if (group) row.group = group;
         return row;
       });
-      // Superset: pauza se drži tek nakon zadnje vježbe u grupi (ako nije izričito zadana).
-      rows.forEach((row, i) => {
-        const nx = rows[i + 1];
-        if (row.group && nx && nx.group === row.group && rowsIn[i].restSeconds == null && rowsIn[i].rest == null) row.restSeconds = 0;
-      });
-      S.training.templates.push({ id: uid("tpl"), title: String(title || tr("Uvezeni trening")), exercises: rows });
-      if (typeof saveTraining === "function") saveTraining();
-      toast(tr("Trening uvezen"));
+      const finishRows = (rows, rowsIn) => {
+        // Superset: pauza se drži tek nakon zadnje vježbe u grupi (ako nije izričito zadana).
+        rows.forEach((row, i) => {
+          const nx = rows[i + 1];
+          if (row.group && nx && nx.group === row.group && rowsIn[i].restSeconds == null && rowsIn[i].rest == null) row.restSeconds = 0;
+        });
+        return rows;
+      };
+      const sessionsIn = Array.isArray(obj) && obj.length && obj.every(isSessionObj) ? obj : (isSessionObj(obj) ? [obj] : null);
+      if (sessionsIn) {
+        let addedS = 0;
+        for (const so of sessionsIn) {
+          const rowsIn = Array.isArray(so.exercises) ? so.exercises : [];
+          if (!rowsIn.length) { $("#imp_err").textContent = tr("Trening za {d} nema vježbi.", { d: so.date || "?" }); return; }
+          const dk = /^\d{4}-\d{2}-\d{2}$/.test(String(so.date || "")) ? String(so.date) : dateKey(S.day || new Date());
+          const rows = finishRows(parseRows(rowsIn), rowsIn);
+          const endMs = so.completedAt ? Date.parse(so.completedAt) : Date.parse(dk + "T12:00:00");
+          const durMin = Math.max(0, num(so.durationMin != null ? so.durationMin : so.minutes, 0));
+          const snapshot = { id: null, title: String(so.title || tr("Uvezeni trening")), exercises: rows };
+          const log = { performedExercises: rows.map((row) => {
+            const pe = perfFromRow(row);
+            if (pe.cardio) pe.cardio.done = true; else pe.sets.forEach((st) => { st.done = true; });
+            return pe;
+          }) };
+          S.training.sessions.push({
+            id: uid("ses"), date: dk, templateId: null, status: "completed",
+            startedAt: endMs - durMin * 60000, completedAt: new Date(endMs).toISOString(),
+            snapshot: snapshot, log: log,
+          });
+          addedS++;
+        }
+        if (typeof saveTraining === "function") saveTraining();
+        toast(tr("Odrađenih treninga uvezeno: {n}", { n: addedS }));
+      } else {
+        let title = "", rowsIn = [];
+        if (Array.isArray(obj)) rowsIn = obj;
+        else if (Array.isArray(obj.exercises)) { title = obj.title || ""; rowsIn = obj.exercises; }
+        else if (obj.template && Array.isArray(obj.template.exercises)) { title = obj.template.title || obj.title || ""; rowsIn = obj.template.exercises; }
+        if (!rowsIn.length) { $("#imp_err").textContent = tr("Nijedna vježba nije prepoznata."); return; }
+        const rows = finishRows(parseRows(rowsIn), rowsIn);
+        S.training.templates.push({ id: uid("tpl"), title: String(title || tr("Uvezeni trening")), exercises: rows });
+        if (typeof saveTraining === "function") saveTraining();
+        toast(tr("Trening uvezen"));
+      }
     } else if (el.dataset.kind === "plate") {
       const slotIds = SLOTS.map((sl) => sl.id);
       const slot = slotIds.indexOf(obj.slot) >= 0 ? obj.slot : "uzina";
