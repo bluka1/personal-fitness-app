@@ -45,7 +45,11 @@ h2{font-size:17px;margin:0;letter-spacing:-0.02em;}
 .mb12{margin-bottom:12px;}.mb14{margin-bottom:14px;}.mb16{margin-bottom:16px;}.mb18{margin-bottom:18px;}
 .p12{padding:12px;}.p14{padding:14px;}.p16{padding:16px;}.p18{padding:18px;}
 button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none;font-size:15px;}
-button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--amber);}
+.stpr:focus-within{border-color:var(--amber);}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;}
 input,select,textarea{font-family:inherit;background:var(--sf2);border:1px solid var(--ln);color:var(--ink);
 border-radius:10px;padding:10px 12px;font-size:16px;width:100%;display:block;}
 textarea{resize:vertical;line-height:1.5;}
@@ -89,6 +93,7 @@ display:flex;max-width:460px;margin:0 auto;padding-bottom:calc(4px + env(safe-ar
 #nav button{flex:1;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:3px;
 font-size:10px;font-weight:600;color:var(--mut);letter-spacing:.03em;}
 #nav button.on{color:var(--amber);}
+#nav.kb{display:none;}
 #nav .pip{width:18px;height:3px;border-radius:2px;background:transparent;}
 #nav button.on .pip{background:var(--amber);}
 #sheet{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;justify-content:flex-end;background:rgba(10,7,5,.72);}
@@ -106,6 +111,8 @@ z-index:80;white-space:nowrap;display:none;}
 .tdot{width:5px;height:5px;border-radius:999px;}
 .setrow{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;}
 .setrow.done{opacity:.5;}
+.sethdr{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);}
+.sethdr span{text-align:center;}
 .chk{width:32px;height:36px;border:1px solid var(--ln);border-radius:8px;background:var(--sf);color:var(--sage);font-weight:800;font-size:16px;flex:none;}
 .setrow.done .chk{background:var(--sage);color:#12140f;border-color:var(--sage);}
 .stpr{display:flex;align-items:center;border:1px solid var(--ln);border-radius:8px;overflow:hidden;}
@@ -142,6 +149,26 @@ border-radius:14px;z-index:70;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.
 
 const I18N = {
   en: {
+    'Kardio': `Cardio`,
+    'Snaga': `Strength`,
+    'Minute': `Minutes`,
+    'Km': `Km`,
+    'kardio': `cardio`,
+    'pon.': `reps`,
+    'kg': `kg`,
+    'Superset': `Superset`,
+    'naizmjenično, pauza na kraju': `alternate, rest at the end`,
+    'Superset s prethodnom': `Superset with previous`,
+    'Spoji u superset s prethodnom': `Link as superset with previous`,
+    'Kardio se bilježi u minutama i kilometrima, bez serija.': `Cardio is logged in minutes and kilometres, no sets.`,
+    'Obroci po porciji': `Per serving`,
+    'Makroi po porciji': `Macros per serving`,
+    'Makroi se računaju iz gramaže (na 100 g: {k} kcal · {p}P · {c}UH · {f}M).': `Macros are computed from grams (per 100 g: {k} kcal · {p}P · {c}C · {f}F).`,
+    'Upiši makroe — barem kcal mora biti veći od 0': `Enter macros — kcal must be above 0`,
+    'Neke namirnice nisu u bazi. Dodaj ih ili prebaci na „Upišem makroe”.': `Some ingredients are not in the library. Add them or switch to “Enter macros”.`,
+    'Dodaj barem jednu namirnicu ili upiši makroe': `Add at least one ingredient or enter macros`,
+    'Recept „{name}” nema makroe (macros.kcal). Bez namirnica u bazi makroi su obavezni.': `Recipe “{name}” has no macros (macros.kcal). Without library ingredients, macros are required.`,
+    'Dodano: {n}. Preskočeno: ': `Added: {n}. Skipped: `,
     'Danas': `Today`,
     'Jezik': `Language`,
     'Kalendar': `Calendar`,
@@ -436,6 +463,26 @@ const I18N = {
     'AI nije vratio čist JSON — pregledaj i po potrebi ispravi.': `AI didn't return clean JSON — review and fix if needed.`,
   },
   de: {
+    'Kardio': `Cardio`,
+    'Snaga': `Kraft`,
+    'Minute': `Minuten`,
+    'Km': `Km`,
+    'kardio': `Cardio`,
+    'pon.': `Wdh.`,
+    'kg': `kg`,
+    'Superset': `Supersatz`,
+    'naizmjenično, pauza na kraju': `abwechselnd, Pause am Ende`,
+    'Superset s prethodnom': `Supersatz mit vorheriger`,
+    'Spoji u superset s prethodnom': `Mit vorheriger zum Supersatz verbinden`,
+    'Kardio se bilježi u minutama i kilometrima, bez serija.': `Cardio wird in Minuten und Kilometern erfasst, ohne Sätze.`,
+    'Obroci po porciji': `Pro Portion`,
+    'Makroi po porciji': `Makros pro Portion`,
+    'Makroi se računaju iz gramaže (na 100 g: {k} kcal · {p}P · {c}UH · {f}M).': `Makros werden aus den Gramm berechnet (pro 100 g: {k} kcal · {p}P · {c}KH · {f}F).`,
+    'Upiši makroe — barem kcal mora biti veći od 0': `Makros eingeben — kcal muss größer als 0 sein`,
+    'Neke namirnice nisu u bazi. Dodaj ih ili prebaci na „Upišem makroe”.': `Einige Zutaten fehlen in der Datenbank. Füge sie hinzu oder wechsle zu „Makros eingeben“.`,
+    'Dodaj barem jednu namirnicu ili upiši makroe': `Füge mindestens eine Zutat hinzu oder gib Makros ein`,
+    'Recept „{name}” nema makroe (macros.kcal). Bez namirnica u bazi makroi su obavezni.': `Rezept „{name}“ hat keine Makros (macros.kcal). Ohne Zutaten in der Datenbank sind Makros Pflicht.`,
+    'Dodano: {n}. Preskočeno: ': `Hinzugefügt: {n}. Übersprungen: `,
     'Danas': `Heute`,
     'Jezik': `Sprache`,
     'Kalendar': `Kalender`,
@@ -990,13 +1037,20 @@ function lastBestSet(sessions, exerciseId) {
   return best;
 }
 
+/* Ukupno minuta kardija u sesiji (0 ako ga nema). */
+function sessionCardioMinutes(session) {
+  const pe = session && session.log && session.log.performedExercises;
+  if (!pe) return 0;
+  return pe.reduce((a, ex) => a + ((ex.cardio && ex.cardio.minutes) || 0), 0);
+}
+
 function activeSession(training) {
   const list = (training && training.sessions) || [];
   return list.find((s) => s.status === "active") || null;
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { cloneTemplate, sessionVolume, sessionSetCount, bestWeight, bestWeightTimes, lastBestSet, activeSession };
+  module.exports = { cloneTemplate, sessionVolume, sessionSetCount, sessionCardioMinutes, bestWeight, bestWeightTimes, lastBestSet, activeSession };
 }
 
 /* Početni sadržaj za trening — ubacuje se samo ako još nema spremljenih podataka. */
@@ -2364,10 +2418,31 @@ function sheetMealEdit(m) {
       <h2>${tr("Uredi unos")}</h2>
       <button class="btn btn-g sm" data-act="close">${tr("Odustani")}</button>
     </div>
-    <div class="ellip" style="font-weight:500;margin-bottom:12px">${esc(gi ? gi.iname : m.name)}</div>
-    <label class="eyebrow">${gi ? tr("Gramaža (g)") : tr("Broj porcija")}</label>
-    <input inputmode="decimal" id="me_q" value="${gi ? gi.g : m.servings}" style="margin:6px 0 14px">
-    <button class="btn btn-p wide" data-act="meal-save" data-id="${m.id}">${tr("Spremi")}</button>
+    <label class="eyebrow">${tr("Naziv")}</label>
+    <input id="me_name" value="${esc(gi ? gi.iname : m.name)}" style="margin:6px 0 12px">
+    <div class="row" style="gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <label class="eyebrow">${tr("Obrok")}</label>
+        <select id="me_slot" style="margin-top:6px">${SLOTS.map((s) => `<option value="${s.id}"${s.id === m.slot ? " selected" : ""}>${tr(s.label)}</option>`).join("")}</select>
+      </div>
+      <div style="width:110px">
+        <label class="eyebrow">${gi ? tr("Gramaža (g)") : tr("Broj porcija")}</label>
+        <input inputmode="decimal" id="me_q" value="${gi ? gi.g : m.servings}" style="margin-top:6px">
+      </div>
+    </div>
+    ${gi ? `<p class="note">${tr("Makroi se računaju iz gramaže (na 100 g: {k} kcal · {p}P · {c}UH · {f}M).", { k: r0(gi.base.kcal), p: r1(gi.base.p), c: r1(gi.base.c), f: r1(gi.base.f) })}</p>` : `
+    <div class="eyebrow mb8">${tr("Makroi po porciji")}</div>
+    <div class="row" style="gap:8px;margin-bottom:14px">
+      ${[["kcal", "kcal"], ["p", "P"], ["c", "UH"], ["f", "M"]].map(([k, l]) => `
+        <div style="flex:1">
+          <input inputmode="decimal" id="me_${k}" value="${Math.round((m[k] || 0) * 10) / 10}" class="mini">
+          <div class="eyebrow center" style="margin-top:4px">${l}</div>
+        </div>`).join("")}
+    </div>`}
+    <div class="row" style="gap:8px">
+      <button class="btn btn-p grow" data-act="meal-save" data-id="${m.id}">${tr("Spremi")}</button>
+      <button class="btn btn-g" data-act="meal-del" data-id="${m.id}">${tr("Obriši")}</button>
+    </div>
   </div>`;
 }
 
@@ -2411,7 +2486,7 @@ function sheetImport(s) {
   const helps = {
     ing: tr('Zalijepi JSON niz namirnica, ili analiziraj sliku deklaracije (makroi na 100 g).'),
     rec: tr("Zalijepi JSON niz recepata, ili analiziraj sliku recepta."),
-    train: tr("Analiziraj sliku plana treninga, pa pregledaj i uvezi."),
+    train: tr("Zalijepi JSON treninga ili analiziraj sliku plana. Oblik: {\"title\":\"...\",\"exercises\":[{\"name\":\"Zgibovi\",\"sets\":3,\"reps\":8,\"weight\":0,\"rest\":90,\"superset\":\"A\"},{\"name\":\"Trčanje\",\"type\":\"cardio\",\"minutes\":30,\"km\":5}]}"),
     plate: tr("Analiziraj sliku tanjura — AI procijeni makrose i doda obrok danas. Procjena, pregledaj prije uvoza."),
     all: tr("Zalijepi sadržaj preuzete kopije. Prepisuje namirnice, recepte, ciljeve i dnevnike."),
   };
@@ -2628,15 +2703,24 @@ document.addEventListener("click", (e) => {
     const q = num($("#me_q").value, 0);
     if (!q || q <= 0) { toast(tr("Upiši broj veći od 0")); return; }
     const gi = mealGramsInfo(m);
+    const newName = ($("#me_name").value || "").trim();
+    if ($("#me_slot")) m.slot = $("#me_slot").value;
     if (gi) {
       const k = q / 100;
       // Zapiši base/iname/g natrag (stari zapisi ih dobiju pa idući edit ide čisto).
-      m.base = gi.base; m.iname = gi.iname; m.g = q;
+      m.base = gi.base; m.iname = newName || gi.iname; m.g = q;
       m.kcal = gi.base.kcal * k; m.p = gi.base.p * k; m.c = gi.base.c * k; m.f = gi.base.f * k;
-      m.name = gi.iname + " (" + q + " g)";
+      m.name = m.iname + " (" + q + " g)";
     } else {
       m.servings = q;
+      if (newName) m.name = newName;
+      ["kcal", "p", "c", "f"].forEach((k) => { if ($("#me_" + k)) m[k] = Math.max(0, num($("#me_" + k).value, m[k] || 0)); });
     }
+    saveLogs(); S.sheet = null; render(); return;
+  }
+  if (a === "meal-del") {
+    const log = today();
+    log.meals = log.meals.filter((x) => x.id !== el.dataset.id);
     saveLogs(); S.sheet = null; render(); return;
   }
 
@@ -2718,6 +2802,14 @@ document.addEventListener("click", (e) => {
     collectRecipe();
     const r = S.sheet.recipe;
     if (!r.name.trim()) { toast(tr("Recept treba naziv")); return; }
+    if (r.mode === "direct") {
+      const m = r.macros || {};
+      if (!(m.kcal > 0)) { toast(tr("Upiši makroe — barem kcal mora biti veći od 0")); return; }
+    } else {
+      const missing = (r.items || []).filter((it) => !S.ingredients.find((x) => x.id === it.ing));
+      if (missing.length) { toast(tr("Neke namirnice nisu u bazi. Dodaj ih ili prebaci na „Upišem makroe”.")); return; }
+      if (!(r.items || []).length) { toast(tr("Dodaj barem jednu namirnicu ili upiši makroe")); return; }
+    }
     r.servings = Math.max(1, Math.round(r.servings) || 1);
     r.steps = (r.steps || []).map((s) => s.trim()).filter(Boolean);
     r.ing = (r.ing || []).map((s) => s.trim()).filter(Boolean);
@@ -2820,7 +2912,7 @@ document.addEventListener("click", (e) => {
     } else if (el.dataset.kind === "rec") {
       if (!Array.isArray(obj)) { $("#imp_err").textContent = tr("Očekujem niz [ ... ]"); return; }
       const slotIds = SLOTS.map((s) => s.id);
-      let added = 0;
+      let added = 0, impErr = "";
       obj.forEach((x) => {
         if (!x || !x.name) return;
         const mode = x.mode === "items" ? "items" : "direct";
@@ -2845,18 +2937,33 @@ document.addEventListener("click", (e) => {
           });
           const missing = rec.items.filter((it) => !S.ingredients.some((i) => i.id === it.ing));
           if (missing.length) {
-            $("#imp_err").textContent = tr("Recept „{name}” traži namirnicu koje nema. Uvezi prvo namirnice.", { name: rec.name });
-            return;
+            const m = x.macros || {};
+            if (!(num(m.kcal, 0) > 0)) {
+              impErr = tr("Recept „{name}” traži namirnicu koje nema. Uvezi prvo namirnice ili dodaj \"macros\" u recept.", { name: rec.name });
+              return;
+            }
+            // Namirnice nisu sve u bazi, ali makroi jesu: spremi kao izravni recept,
+            // a sastojke zadrži kao tekstualnu listu (naziv + gramaža).
+            rec.mode = "direct";
+            rec.macros = { kcal: num(m.kcal, 0), p: num(m.p, 0), c: num(m.c, 0), f: num(m.f, 0) };
+            rec.ing = (x.items || []).map((it) => { const nm = it.name || (S.ingredients.find((i) => i.id === it.ing) || {}).name || "?"; return nm + (it.g ? " " + it.g + " g" : ""); }).concat(rec.ing);
+            rec.items = [];
           }
         } else {
           const m = x.macros || {};
+          if (!(num(m.kcal, 0) > 0)) {
+            impErr = tr("Recept „{name}” nema makroe (macros.kcal). Bez namirnica u bazi makroi su obavezni.", { name: rec.name });
+            return;
+          }
           rec.macros = { kcal: num(m.kcal, 0), p: num(m.p, 0), c: num(m.c, 0), f: num(m.f, 0) };
+          if (Array.isArray(x.items) && x.items.length) rec.ing = x.items.map((it) => String(it.name || "?") + (it.g ? " " + it.g + " g" : "")).concat(rec.ing);
         }
         S.recipes.push(rec);
         added++;
       });
-      if (!added) { if (!$("#imp_err").textContent) $("#imp_err").textContent = tr("Nijedan recept nije prepoznat."); return; }
+      if (!added) { $("#imp_err").textContent = impErr || tr("Nijedan recept nije prepoznat."); return; }
       saveData(); toast(tr("Dodano recepata: {n}", { n: added }));
+      if (impErr) { renderSheet(); $("#imp_err").textContent = tr("Dodano: {n}. Preskočeno: ", { n: added }) + impErr; return; } // dio preskočen — ostavi poruku vidljivu
     } else if (el.dataset.kind === "train") {
       if (!S.training) { $("#imp_err").textContent = tr("Trening modul nije učitan."); return; }
       // Toleriraj razne oblike koje modeli vrate: {title,exercises:[...]} (ravno),
@@ -2870,8 +2977,16 @@ document.addEventListener("click", (e) => {
       const arr = (x) => (Array.isArray(x) ? x.map(String) : []);
       const rows = rowsIn.map((rr, i) => {
         const nm = String(rr.name || rr.exercise || tr("vježba"));
+        const isCardio = rr.type === "cardio" || rr.minutes != null || rr.km != null;
         let ex = findEx(nm);
-        if (!ex) { ex = { id: uid("ex"), name: nm, muscles: arr(rr.muscles), equipment: arr(rr.equipment) }; S.training.exercises.push(ex); }
+        if (!ex) { ex = { id: uid("ex"), name: nm, type: isCardio ? "cardio" : "strength", muscles: arr(rr.muscles), equipment: arr(rr.equipment) }; S.training.exercises.push(ex); }
+        else if (isCardio && ex.type !== "cardio") ex.type = "cardio";
+        const group = rr.superset != null && rr.superset !== "" && rr.superset !== false ? String(rr.superset).toUpperCase() : (rr.group ? String(rr.group).toUpperCase() : "");
+        if (ex.type === "cardio") {
+          const row = { exerciseId: ex.id, order: i, restSeconds: 0, targetSets: [], cardio: { minutes: Math.max(0, num(rr.minutes, 0)), km: Math.max(0, num(rr.km, 0)) } };
+          if (group) row.group = group;
+          return row;
+        }
         // Serije: niz {reps,weight}, ili targetSets, ili ravno sets(broj)+reps+weight.
         let sets;
         const src = Array.isArray(rr.sets) ? rr.sets : Array.isArray(rr.targetSets) ? rr.targetSets : null;
@@ -2883,7 +2998,14 @@ document.addEventListener("click", (e) => {
           const wt = num(rr.weight, 0);
           sets = Array.from({ length: n }, () => ({ reps: reps, weight: wt }));
         }
-        return { exerciseId: ex.id, order: i, restSeconds: Math.max(0, Math.round(num(rr.restSeconds, 90))), targetSets: sets };
+        const row = { exerciseId: ex.id, order: i, restSeconds: Math.max(0, Math.round(num(rr.restSeconds != null ? rr.restSeconds : rr.rest, 90))), targetSets: sets };
+        if (group) row.group = group;
+        return row;
+      });
+      // Superset: pauza se drži tek nakon zadnje vježbe u grupi (ako nije izričito zadana).
+      rows.forEach((row, i) => {
+        const nx = rows[i + 1];
+        if (row.group && nx && nx.group === row.group && rowsIn[i].restSeconds == null && rowsIn[i].rest == null) row.restSeconds = 0;
       });
       S.training.templates.push({ id: uid("tpl"), title: String(title || tr("Uvezeni trening")), exercises: rows });
       if (typeof saveTraining === "function") saveTraining();
@@ -2969,6 +3091,14 @@ function fitSheet() {
   el.style.height = vv.height + "px";
   el.style.bottom = "auto";
 }
+/* iOS: position:fixed;bottom:0 se "zalijepi" iznad tipkovnice. Sakrij nav dok
+   je neki input u fokusu; vrati ga kad se tipkovnica spusti. */
+document.addEventListener("focusin", (e) => {
+  if (e.target.matches("input,textarea,select")) { const n = document.getElementById("nav"); if (n) n.classList.add("kb"); }
+});
+document.addEventListener("focusout", () => {
+  setTimeout(() => { if (!document.activeElement || !document.activeElement.matches("input,textarea,select")) { const n = document.getElementById("nav"); if (n) n.classList.remove("kb"); } }, 50);
+});
 if (window.visualViewport) {
   visualViewport.addEventListener("resize", fitSheet);
   visualViewport.addEventListener("scroll", fitSheet);
@@ -3044,6 +3174,14 @@ function saveTraining() {
 }
 
 const exName = (id) => { const e = S.training.exercises.find((x) => x.id === id); return e ? e.name : tr("nepoznata vježba"); };
+const exIsCardio = (id) => { const e = S.training.exercises.find((x) => x.id === id); return !!(e && e.type === "cardio"); };
+/* Superset: susjedni redovi s istom oznakom `group` (A, B, ...). */
+const nextGroupLetter = (rows) => { const used = rows.map((r) => r.group).filter(Boolean); let c = 65; while (used.indexOf(String.fromCharCode(c)) >= 0) c++; return String.fromCharCode(c); };
+const cardioLabel = (c) => { if (!c) return "—"; const parts = []; if (c.minutes) parts.push(c.minutes + " min"); if (c.km) parts.push(c.km + " km"); return parts.join(" · ") || "—"; };
+/* Novi zapis za dnevnik iz retka predloška (snaga = serije, kardio = minute/km). */
+const perfFromRow = (row) => exIsCardio(row.exerciseId) || row.cardio
+  ? { exerciseId: row.exerciseId, sets: [], cardio: { minutes: (row.cardio || {}).minutes || 0, km: (row.cardio || {}).km || 0, done: false } }
+  : { exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) };
 
 /* ---------- glavni prikaz s pod-navigacijom ---------- */
 
@@ -3087,7 +3225,7 @@ function paneVjezbe() {
     html += `
     <button class="card row-btn p12 mb8" data-act="t-open-ex" data-id="${e.id}">
       <div style="font-size:14.5px;font-weight:500">${esc(e.name)}</div>
-      <div class="num sub2">${(e.muscles || []).map(esc).join(", ") || "—"}${(e.equipment || []).length ? " · " + e.equipment.map(esc).join(", ") : ""}</div>
+      <div class="num sub2">${e.type === "cardio" ? tr("Kardio") + " · " : ""}${(e.muscles || []).map(esc).join(", ") || "—"}${(e.equipment || []).length ? " · " + e.equipment.map(esc).join(", ") : ""}</div>
     </button>`;
   });
   return html;
@@ -3104,6 +3242,11 @@ function sheetExercise(x) {
     </div>
     <label class="eyebrow">${tr("Naziv")}</label>
     <input id="tx_name" value="${esc(x.name || "")}" placeholder="${tr('npr. Potisak s klupe')}" style="margin:6px 0 14px">
+    <div class="seg mb14">
+      <button data-act="t-ex-type" data-v="strength" class="${x.type !== "cardio" ? "on" : ""}">${tr("Snaga")}</button>
+      <button data-act="t-ex-type" data-v="cardio" class="${x.type === "cardio" ? "on" : ""}">${tr("Kardio")}</button>
+    </div>
+    ${x.type === "cardio" ? `<p class="note">${tr("Kardio se bilježi u minutama i kilometrima, bez serija.")}</p>` : ""}
     <div class="eyebrow mb8">${tr("Mišići")}</div>
     <div class="row wrap" style="margin-bottom:12px">${chips(MUSCLES, x.muscles || [], "t-ex-muscle")}</div>
     <div class="eyebrow mb8">${tr("Oprema")}</div>
@@ -3127,20 +3270,31 @@ function sheetTemplate(tpl) {
     <input id="tt_title" value="${esc(tpl.title || '')}" placeholder="${tr('npr. Gornji dio A')}" style="margin:6px 0 14px">
     <div class="eyebrow mb8">${tr("Vježbe")}</div>
     <div class="mb10">
-      ${tpl.exercises.map((row, i) => `
-        <div class="card p12 mb8" style="background:var(--sf2)">
+      ${tpl.exercises.map((row, i) => {
+        const cardio = exIsCardio(row.exerciseId);
+        const prev = tpl.exercises[i - 1];
+        const linked = !!(row.group && prev && prev.group === row.group);
+        return `
+        <div class="card p12 mb8" style="background:var(--sf2)${row.group ? ";border-left:3px solid var(--amber)" : ""}">
           <div class="row spread">
-            <span class="ellip" style="flex:1;font-size:14px">${esc(exName(row.exerciseId))}</span>
+            <span class="ellip" style="flex:1;font-size:14px">${row.group ? `<span class="eyebrow" style="color:var(--amber);margin-right:6px">SS ${esc(row.group)}</span>` : ""}${esc(exName(row.exerciseId))}</span>
             <button class="x" data-act="t-tpl-rm" data-i="${i}">×</button>
           </div>
+          ${cardio ? `
+          <div class="row" style="gap:8px;margin-top:8px">
+            <div style="flex:1"><label class="eyebrow">${tr("Minute")}</label><input inputmode="numeric" id="ts_min_${i}" value="${(row.cardio || {}).minutes || 0}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Km")}</label><input inputmode="decimal" id="ts_km_${i}" value="${(row.cardio || {}).km || 0}" class="mini"></div>
+            <div style="flex:2"></div>
+          </div>` : `
           <div class="num sub2" style="margin-top:4px">${row.targetSets.length} × ${row.targetSets[0] ? row.targetSets[0].reps + ' ' + tr('pon') + ' · ' + row.targetSets[0].weight + ' kg' : '—'} · ${tr("pauza")} ${row.restSeconds}s</div>
           <div class="row" style="gap:8px;margin-top:8px">
             <div style="flex:1"><label class="eyebrow">${tr("Serije")}</label><input inputmode="numeric" id="ts_sets_${i}" value="${row.targetSets.length}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Pon.")}</label><input inputmode="numeric" id="ts_reps_${i}" value="${row.targetSets[0] ? row.targetSets[0].reps : 5}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Kg")}</label><input inputmode="decimal" id="ts_wt_${i}" value="${row.targetSets[0] ? row.targetSets[0].weight : 0}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Pauza s")}</label><input inputmode="numeric" id="ts_rest_${i}" value="${row.restSeconds}" class="mini"></div>
-          </div>
-        </div>`).join("")}
+          </div>`}
+          ${prev && !cardio && !exIsCardio(prev.exerciseId) ? `<button class="btn ${linked ? "btn-p" : "btn-g"} sm" style="margin-top:8px" data-act="t-tpl-link" data-i="${i}">${linked ? "⇅ " + tr("Superset s prethodnom") : "⇅ " + tr("Spoji u superset s prethodnom")}</button>` : ""}
+        </div>`; }).join("")}
     </div>
     <div class="row" style="gap:8px;margin-bottom:16px">
       <select id="tt_add_ex" style="flex:1;min-width:0">${exOptions}</select>
@@ -3236,7 +3390,7 @@ function panePovijest() {
         <span style="font-size:14.5px;font-weight:500">${esc(s.snapshot ? s.snapshot.title : tr("Trening"))}</span>
         <span class="num sub" style="margin:0">${esc(s.date)}</span>
       </div>
-      <div class="num sub2">${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg</div>
+      <div class="num sub2">${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg${sessionCardioMinutes(s) ? " · " + tr("kardio") + " " + sessionCardioMinutes(s) + " min" : ""}</div>
     </button>`;
   });
   return html + "</div>";
@@ -3254,7 +3408,8 @@ function sheetSession(s) {
     ${(s.log ? s.log.performedExercises : []).map((pe) => `
       <div class="mb14">
         <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">${esc(exName(pe.exerciseId))}</div>
-        ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Serija")} ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
+        ${pe.cardio ? `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Kardio")}</span><span class="num" style="font-size:14px">${cardioLabel(pe.cardio)}</span></div>` : ""}
+        ${(pe.sets || []).map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Serija")} ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
       </div>`).join("")}
     <button class="btn btn-g wide" style="margin-top:6px" data-act="t-del-session" data-id="${esc(s.id)}">${tr("Obriši trening")}</button>
   </div>`;
@@ -3346,15 +3501,35 @@ function paneLog(active) {
       </div>
       ${snap.exercises.map((row, ei) => {
         const pe = active.log.performedExercises[ei];
+        const prevRow = snap.exercises[ei - 1];
+        const ssStart = row.group && !(prevRow && prevRow.group === row.group);
+        const ssHdr = ssStart ? `<div class="eyebrow mb6" style="color:var(--amber)">${tr("Superset")} ${esc(row.group)} · ${tr("naizmjenično, pauza na kraju")}</div>` : "";
+        if (pe.cardio) {
+          return `
+        ${ssHdr}
+        <div class="mb12">
+          <div class="row spread mb6">
+            <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
+            <span class="num sub" style="margin:0">${tr("Kardio")}</span>
+          </div>
+          <div class="setrow${pe.cardio.done ? " done" : ""}">
+            <button class="chk" data-act="t-cardio-done" data-ei="${ei}" aria-label="${tr('Gotovo')}">${pe.cardio.done ? "✓" : ""}</button>
+            <div class="stpr"><input inputmode="numeric" data-act="t-cardio-min" data-ei="${ei}" value="${pe.cardio.minutes || 0}" style="width:64px" aria-label="${tr('Minute')}"><span class="mut" style="font-size:12px;padding-right:8px">min</span></div>
+            <div class="stpr"><input inputmode="decimal" data-act="t-cardio-km" data-ei="${ei}" value="${pe.cardio.km || 0}" style="width:64px" aria-label="${tr('Km')}"><span class="mut" style="font-size:12px;padding-right:8px">km</span></div>
+          </div>
+        </div>`;
+        }
         const bw = bestWeightTimes(S.training.sessions, row.exerciseId);
         const last = lastBestSet(S.training.sessions, row.exerciseId);
         return `
-        <div class="mb12">
+        ${ssHdr}
+        <div class="mb12"${row.group ? ' style="border-left:3px solid var(--amber);padding-left:10px"' : ""}>
           <div class="row spread mb6">
             <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
             ${bw.weight ? `<span class="num sub" style="margin:0">${tr("najbolje")} ${bw.weight} kg · ${bw.times}×</span>` : ""}
           </div>
           ${last ? `<div class="num sub2" style="margin:-2px 0 8px">${tr("prošli put")}: ${last.reps} × ${last.weight} kg</div>` : ""}
+          ${pe.sets.length ? `<div class="sethdr"><span style="width:32px"></span><span style="width:110px">${tr("pon.")}</span><span style="width:9px"></span><span style="width:110px">${tr("kg")}</span></div>` : ""}
           ${pe.sets.map((s, si) => `
             <div class="setrow${s.done ? " done" : ""}">
               <button class="chk" data-act="t-set-done" data-ei="${ei}" data-si="${si}" aria-label="${tr('Gotovo')}">${s.done ? "✓" : ""}</button>
@@ -3391,7 +3566,7 @@ function paneLog(active) {
     <div class="row spread mb10" style="margin-top:4px">
       <span class="eyebrow">${tr("Predlošci")}</span>
       <div class="row" style="gap:6px">
-        <button class="btn btn-g sm" data-act="import-train"${typeof aiConfigured === "function" && aiConfigured() ? "" : " disabled"}>${tr("Iz slike")}</button>
+        <button class="btn btn-g sm" data-act="import-train">${tr("Uvezi")}</button>
         <button class="btn btn-p sm" data-act="t-new-tpl">${tr("Novi predložak")}</button>
       </div>
     </div>`;
@@ -3417,6 +3592,11 @@ function collectTemplate() {
   if (!t) return;
   if ($("#tt_title")) t.title = $("#tt_title").value;
   t.exercises.forEach((row, i) => {
+    if (exIsCardio(row.exerciseId)) {
+      row.cardio = { minutes: Math.max(0, num(($("#ts_min_" + i) || {}).value, (row.cardio || {}).minutes || 0)), km: Math.max(0, num(($("#ts_km_" + i) || {}).value, (row.cardio || {}).km || 0)) };
+      row.targetSets = []; row.restSeconds = 0;
+      return;
+    }
     const nSets = Math.max(1, parseInt(($("#ts_sets_" + i) || {}).value || row.targetSets.length, 10) || 1);
     const reps = num(($("#ts_reps_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].reps : 5);
     const wt = num(($("#ts_wt_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].weight : 0);
@@ -3426,7 +3606,12 @@ function collectTemplate() {
 }
 
 function stripMeta(t) {
-  return { id: t.id, title: t.title, exercises: t.exercises.map((r) => ({ exerciseId: r.exerciseId, order: r.order, restSeconds: r.restSeconds, targetSets: r.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) };
+  return { id: t.id, title: t.title, exercises: t.exercises.map((r) => {
+    const o = { exerciseId: r.exerciseId, order: r.order, restSeconds: r.restSeconds, targetSets: (r.targetSets || []).map((s) => ({ reps: s.reps, weight: s.weight })) };
+    if (r.group) o.group = r.group;
+    if (r.cardio) o.cardio = { minutes: r.cardio.minutes || 0, km: r.cardio.km || 0 };
+    return o;
+  }) };
 }
 
 /* ---------- radnje (vlastiti listener; app.js ignorira t-* akcije) ---------- */
@@ -3450,6 +3635,12 @@ document.addEventListener("click", (e) => {
     S.sheet = { type: "t-exercise", ex: Object.assign({ _editing: true }, JSON.parse(JSON.stringify(ex))) };
     renderSheet(); return;
   }
+  if (a === "t-ex-type") {
+    const ex = S.sheet.ex;
+    ex.name = ($("#tx_name") || {}).value !== undefined ? $("#tx_name").value : ex.name;
+    ex.type = el.dataset.v === "cardio" ? "cardio" : "strength";
+    renderSheet(); return;
+  }
   if (a === "t-ex-muscle" || a === "t-ex-equip") {
     const key = a === "t-ex-muscle" ? "muscles" : "equipment";
     const v = el.dataset.v;
@@ -3467,10 +3658,10 @@ document.addEventListener("click", (e) => {
     if (!ex.id) {
       if (S.training.exercises.some((y) => y.name.trim().toLowerCase() === ex.name.toLowerCase())) { toast(tr('„{name}“ već postoji', { name: ex.name })); return; }
       ex.id = uid("ex");
-      S.training.exercises.push({ id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] });
+      S.training.exercises.push({ id: ex.id, name: ex.name, type: ex.type === "cardio" ? "cardio" : "strength", muscles: ex.muscles || [], equipment: ex.equipment || [] });
     } else {
       const i = S.training.exercises.findIndex((y) => y.id === ex.id);
-      S.training.exercises[i] = { id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] };
+      S.training.exercises[i] = { id: ex.id, name: ex.name, type: ex.type === "cardio" ? "cardio" : "strength", muscles: ex.muscles || [], equipment: ex.equipment || [] };
     }
     if (saveTraining()) toast(tr("Spremljeno"));
     S.sheet = null; render(); return;
@@ -3534,6 +3725,12 @@ document.addEventListener("click", (e) => {
     }
     saveTraining(); render(); return;
   }
+  if (a === "t-cardio-done") {
+    collectActiveSets();
+    const pe = activeSession(S.training).log.performedExercises[parseInt(el.dataset.ei, 10)];
+    if (pe && pe.cardio) pe.cardio.done = !pe.cardio.done;
+    saveTraining(); render(); return;
+  }
   if (a === "t-rest-skip") { S.rest = null; render(); return; }
   if (a === "t-rest-plus") { if (S.rest) { S.rest.endsAt += 15000; ensureTickers(); } return; }
   if (a === "t-finish") {
@@ -3588,7 +3785,27 @@ document.addEventListener("click", (e) => {
     collectTemplate();
     const id = $("#tt_add_ex").value;
     const t = S.sheet.tpl;
-    t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 90, targetSets: [ { reps: 5, weight: 0 }, { reps: 5, weight: 0 }, { reps: 5, weight: 0 } ] });
+    if (exIsCardio(id)) t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 0, targetSets: [], cardio: { minutes: 30, km: 0 } });
+    else t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 90, targetSets: [ { reps: 5, weight: 0 }, { reps: 5, weight: 0 }, { reps: 5, weight: 0 } ] });
+    renderSheet(); return;
+  }
+  if (a === "t-tpl-link") {
+    collectTemplate();
+    const t = S.sheet.tpl, i = parseInt(el.dataset.i, 10);
+    const row = t.exercises[i], prev = t.exercises[i - 1];
+    if (!prev) return;
+    if (row.group && prev.group === row.group) {
+      // Odspoji: ovaj i sve iza njega s istom oznakom gube grupu.
+      const g = row.group;
+      for (let j = i; j < t.exercises.length && t.exercises[j].group === g; j++) delete t.exercises[j].group;
+      // Grupa s jednim članom nije superset — makni oznaku i s prethodne.
+      if (!(i >= 2 && t.exercises[i - 2].group === g)) delete prev.group;
+    } else {
+      if (!prev.group) prev.group = nextGroupLetter(t.exercises);
+      row.group = prev.group;
+      // U supersetu se pauza drži tek nakon zadnje vježbe u grupi.
+      prev.restSeconds = 0;
+    }
     renderSheet(); return;
   }
   if (a === "t-tpl-rm") { collectTemplate(); S.sheet.tpl.exercises.splice(parseInt(el.dataset.i, 10), 1); renderSheet(); return; }
@@ -3632,7 +3849,7 @@ document.addEventListener("click", (e) => {
     if (existing) { S.sheet = { type: "t-resume", pending: { templateId: s ? s.templateId : "" } }; renderSheet(); return; }
     // Pretvori planiranu sesiju u aktivnu koristeći njezin snapshot.
     s.status = "active"; s.startedAt = Date.now();
-    s.log = { performedExercises: s.snapshot.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) })) };
+    s.log = { performedExercises: s.snapshot.exercises.map(perfFromRow) };
     saveTraining(); registerLeaveGuard();
     S.tab = "trening"; S.trainingTab = "log"; S.sheet = null; render(); return;
   }
@@ -3664,7 +3881,7 @@ function startSession(templateId) {
   const session = {
     id: uid("ses"), date: dateKey(S.day || new Date()), templateId: tpl.id,
     status: "active", startedAt: Date.now(), snapshot: snap,
-    log: { performedExercises: snap.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) },
+    log: { performedExercises: snap.exercises.map(perfFromRow) },
   };
   S.training.sessions.push(session);
   saveTraining();
@@ -3684,6 +3901,12 @@ function collectActiveSets() {
   document.querySelectorAll('[data-act="t-set-wt"]').forEach((inp) => {
     const ei = parseInt(inp.dataset.ei, 10), si = parseInt(inp.dataset.si, 10);
     if (active.log.performedExercises[ei] && active.log.performedExercises[ei].sets[si]) active.log.performedExercises[ei].sets[si].weight = num(inp.value, 0);
+  });
+  document.querySelectorAll('[data-act="t-cardio-min"],[data-act="t-cardio-km"]').forEach((inp) => {
+    const ei = parseInt(inp.dataset.ei, 10);
+    const pe = active.log.performedExercises[ei];
+    if (!pe || !pe.cardio) return;
+    pe.cardio[inp.dataset.act === "t-cardio-min" ? "minutes" : "km"] = Math.max(0, num(inp.value, 0));
   });
   saveTraining();
 }
