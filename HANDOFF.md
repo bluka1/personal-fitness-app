@@ -216,3 +216,45 @@ Ručno, na mobitelu, nakon svake veće izmjene:
 - Ne uvodi `localStorage` ovisnosti u obrasce (vidi odjeljak 2).
 - Ne zaboravi podići verziju cachea u `sw.js`; inače se stara verzija
   poslužuje iz cachea i izgleda kao da promjena nije prošla.
+
+## Dopune (listopad 2026.)
+
+**Recepti bez namirnica u bazi.** Uvoz u `mode:"items"` više ne odbija recept
+čije namirnice nedostaju — ako recept ima `macros` (barem `kcal > 0`), sprema se
+kao `mode:"direct"`, a sastojci idu u tekstualnu listu `ing` ("Naziv 100 g").
+Bez `macros` uvoz tog recepta se preskače uz poruku. Isto pravilo vrijedi i za
+spremanje iz obrasca: `direct` traži kcal > 0, `items` traži da su sve
+namirnice u bazi.
+
+**Uređivanje unosa (Danas).** Edit sheet sad mijenja naziv, slot, gramažu /
+broj porcija, a kod unosa bez `base` (recept, jelo iz slike) i makroe po
+porciji. Ima i gumb Obriši.
+
+**Trening — kardio.** Vježba ima `type: "strength" | "cardio"` (zadano
+strength; stari zapisi bez polja = strength). Kardio redak predloška nema
+`targetSets` nego `cardio: {minutes, km}`; u dnevniku sesije
+`performedExercises[i].cardio = {minutes, km, done}` i `sets: []`. Pomoćne
+funkcije u `training-calc.js` ignoriraju kardio za volumen/serije;
+`sessionCardioMinutes()` zbraja minute.
+
+**Trening — superset.** Redak predloška ima opcionalni `group` ("A", "B"…).
+Susjedni redci s istom oznakom čine superset; u editoru se spajaju gumbom
+„Spoji u superset s prethodnom”. Pri spajanju se pauza prethodnog retka
+postavlja na 0 (pauza se drži nakon zadnje vježbe u grupi). Dnevnik prikazuje
+zaglavlje „Superset A” i lijevu amber crtu.
+
+**JSON uvoz treninga** (Trening → Uvezi, radi i bez AI ključa):
+```json
+{"title":"Street workout 1","exercises":[
+  {"name":"Zgibovi","sets":3,"reps":8,"weight":0,"rest":90,"superset":"A"},
+  {"name":"Propadanja","sets":3,"reps":8,"superset":"A"},
+  {"name":"Trčanje","type":"cardio","minutes":30,"km":5}
+]}
+```
+Nepoznata vježba se stvara automatski (kardio ako ima `type:"cardio"`,
+`minutes` ili `km`).
+
+**iOS sitnice.** `body` ima `user-select:none` (inputi ga vraćaju), focus
+ring je zamijenjen amber borderom, a `#nav` dobiva klasu `kb` (display:none)
+dok je neki input u fokusu — `position:fixed;bottom:0` inače lebdi iznad
+tipkovnice.

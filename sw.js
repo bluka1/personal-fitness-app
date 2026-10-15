@@ -1,5 +1,5 @@
 /* Offline cache. Verzija se mijenja pri svakoj izmjeni aplikacije. */
-const CACHE = "obroci-v20";
+const CACHE = "obroci-v21";
 const ASSETS = ["./", "./index.html", "./zxing.js", "./manifest.json",
   "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 

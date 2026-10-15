@@ -41,6 +41,14 @@ function saveTraining() {
 }
 
 const exName = (id) => { const e = S.training.exercises.find((x) => x.id === id); return e ? e.name : tr("nepoznata vježba"); };
+const exIsCardio = (id) => { const e = S.training.exercises.find((x) => x.id === id); return !!(e && e.type === "cardio"); };
+/* Superset: susjedni redovi s istom oznakom `group` (A, B, ...). */
+const nextGroupLetter = (rows) => { const used = rows.map((r) => r.group).filter(Boolean); let c = 65; while (used.indexOf(String.fromCharCode(c)) >= 0) c++; return String.fromCharCode(c); };
+const cardioLabel = (c) => { if (!c) return "—"; const parts = []; if (c.minutes) parts.push(c.minutes + " min"); if (c.km) parts.push(c.km + " km"); return parts.join(" · ") || "—"; };
+/* Novi zapis za dnevnik iz retka predloška (snaga = serije, kardio = minute/km). */
+const perfFromRow = (row) => exIsCardio(row.exerciseId) || row.cardio
+  ? { exerciseId: row.exerciseId, sets: [], cardio: { minutes: (row.cardio || {}).minutes || 0, km: (row.cardio || {}).km || 0, done: false } }
+  : { exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) };
 
 /* ---------- glavni prikaz s pod-navigacijom ---------- */
 
@@ -84,7 +92,7 @@ function paneVjezbe() {
     html += `
     <button class="card row-btn p12 mb8" data-act="t-open-ex" data-id="${e.id}">
       <div style="font-size:14.5px;font-weight:500">${esc(e.name)}</div>
-      <div class="num sub2">${(e.muscles || []).map(esc).join(", ") || "—"}${(e.equipment || []).length ? " · " + e.equipment.map(esc).join(", ") : ""}</div>
+      <div class="num sub2">${e.type === "cardio" ? tr("Kardio") + " · " : ""}${(e.muscles || []).map(esc).join(", ") || "—"}${(e.equipment || []).length ? " · " + e.equipment.map(esc).join(", ") : ""}</div>
     </button>`;
   });
   return html;
@@ -101,6 +109,11 @@ function sheetExercise(x) {
     </div>
     <label class="eyebrow">${tr("Naziv")}</label>
     <input id="tx_name" value="${esc(x.name || "")}" placeholder="${tr('npr. Potisak s klupe')}" style="margin:6px 0 14px">
+    <div class="seg mb14">
+      <button data-act="t-ex-type" data-v="strength" class="${x.type !== "cardio" ? "on" : ""}">${tr("Snaga")}</button>
+      <button data-act="t-ex-type" data-v="cardio" class="${x.type === "cardio" ? "on" : ""}">${tr("Kardio")}</button>
+    </div>
+    ${x.type === "cardio" ? `<p class="note">${tr("Kardio se bilježi u minutama i kilometrima, bez serija.")}</p>` : ""}
     <div class="eyebrow mb8">${tr("Mišići")}</div>
     <div class="row wrap" style="margin-bottom:12px">${chips(MUSCLES, x.muscles || [], "t-ex-muscle")}</div>
     <div class="eyebrow mb8">${tr("Oprema")}</div>
@@ -124,20 +137,31 @@ function sheetTemplate(tpl) {
     <input id="tt_title" value="${esc(tpl.title || '')}" placeholder="${tr('npr. Gornji dio A')}" style="margin:6px 0 14px">
     <div class="eyebrow mb8">${tr("Vježbe")}</div>
     <div class="mb10">
-      ${tpl.exercises.map((row, i) => `
-        <div class="card p12 mb8" style="background:var(--sf2)">
+      ${tpl.exercises.map((row, i) => {
+        const cardio = exIsCardio(row.exerciseId);
+        const prev = tpl.exercises[i - 1];
+        const linked = !!(row.group && prev && prev.group === row.group);
+        return `
+        <div class="card p12 mb8" style="background:var(--sf2)${row.group ? ";border-left:3px solid var(--amber)" : ""}">
           <div class="row spread">
-            <span class="ellip" style="flex:1;font-size:14px">${esc(exName(row.exerciseId))}</span>
+            <span class="ellip" style="flex:1;font-size:14px">${row.group ? `<span class="eyebrow" style="color:var(--amber);margin-right:6px">SS ${esc(row.group)}</span>` : ""}${esc(exName(row.exerciseId))}</span>
             <button class="x" data-act="t-tpl-rm" data-i="${i}">×</button>
           </div>
+          ${cardio ? `
+          <div class="row" style="gap:8px;margin-top:8px">
+            <div style="flex:1"><label class="eyebrow">${tr("Minute")}</label><input inputmode="numeric" id="ts_min_${i}" value="${(row.cardio || {}).minutes || 0}" class="mini"></div>
+            <div style="flex:1"><label class="eyebrow">${tr("Km")}</label><input inputmode="decimal" id="ts_km_${i}" value="${(row.cardio || {}).km || 0}" class="mini"></div>
+            <div style="flex:2"></div>
+          </div>` : `
           <div class="num sub2" style="margin-top:4px">${row.targetSets.length} × ${row.targetSets[0] ? row.targetSets[0].reps + ' ' + tr('pon') + ' · ' + row.targetSets[0].weight + ' kg' : '—'} · ${tr("pauza")} ${row.restSeconds}s</div>
           <div class="row" style="gap:8px;margin-top:8px">
             <div style="flex:1"><label class="eyebrow">${tr("Serije")}</label><input inputmode="numeric" id="ts_sets_${i}" value="${row.targetSets.length}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Pon.")}</label><input inputmode="numeric" id="ts_reps_${i}" value="${row.targetSets[0] ? row.targetSets[0].reps : 5}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Kg")}</label><input inputmode="decimal" id="ts_wt_${i}" value="${row.targetSets[0] ? row.targetSets[0].weight : 0}" class="mini"></div>
             <div style="flex:1"><label class="eyebrow">${tr("Pauza s")}</label><input inputmode="numeric" id="ts_rest_${i}" value="${row.restSeconds}" class="mini"></div>
-          </div>
-        </div>`).join("")}
+          </div>`}
+          ${prev && !cardio && !exIsCardio(prev.exerciseId) ? `<button class="btn ${linked ? "btn-p" : "btn-g"} sm" style="margin-top:8px" data-act="t-tpl-link" data-i="${i}">${linked ? "⇅ " + tr("Superset s prethodnom") : "⇅ " + tr("Spoji u superset s prethodnom")}</button>` : ""}
+        </div>`; }).join("")}
     </div>
     <div class="row" style="gap:8px;margin-bottom:16px">
       <select id="tt_add_ex" style="flex:1;min-width:0">${exOptions}</select>
@@ -233,7 +257,7 @@ function panePovijest() {
         <span style="font-size:14.5px;font-weight:500">${esc(s.snapshot ? s.snapshot.title : tr("Trening"))}</span>
         <span class="num sub" style="margin:0">${esc(s.date)}</span>
       </div>
-      <div class="num sub2">${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg</div>
+      <div class="num sub2">${sessionSetCount(s)} ${tr("serija")} · ${tr("volumen")} ${Math.round(sessionVolume(s))} kg${sessionCardioMinutes(s) ? " · " + tr("kardio") + " " + sessionCardioMinutes(s) + " min" : ""}</div>
     </button>`;
   });
   return html + "</div>";
@@ -251,7 +275,8 @@ function sheetSession(s) {
     ${(s.log ? s.log.performedExercises : []).map((pe) => `
       <div class="mb14">
         <div style="font-size:14.5px;font-weight:600;margin-bottom:6px">${esc(exName(pe.exerciseId))}</div>
-        ${pe.sets.map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Serija")} ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
+        ${pe.cardio ? `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Kardio")}</span><span class="num" style="font-size:14px">${cardioLabel(pe.cardio)}</span></div>` : ""}
+        ${(pe.sets || []).map((set, i) => `<div class="row spread ingrow"><span class="sub" style="margin:0">${tr("Serija")} ${i + 1}</span><span class="num" style="font-size:14px">${set.reps} × ${set.weight} kg</span></div>`).join("")}
       </div>`).join("")}
     <button class="btn btn-g wide" style="margin-top:6px" data-act="t-del-session" data-id="${esc(s.id)}">${tr("Obriši trening")}</button>
   </div>`;
@@ -343,15 +368,35 @@ function paneLog(active) {
       </div>
       ${snap.exercises.map((row, ei) => {
         const pe = active.log.performedExercises[ei];
+        const prevRow = snap.exercises[ei - 1];
+        const ssStart = row.group && !(prevRow && prevRow.group === row.group);
+        const ssHdr = ssStart ? `<div class="eyebrow mb6" style="color:var(--amber)">${tr("Superset")} ${esc(row.group)} · ${tr("naizmjenično, pauza na kraju")}</div>` : "";
+        if (pe.cardio) {
+          return `
+        ${ssHdr}
+        <div class="mb12">
+          <div class="row spread mb6">
+            <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
+            <span class="num sub" style="margin:0">${tr("Kardio")}</span>
+          </div>
+          <div class="setrow${pe.cardio.done ? " done" : ""}">
+            <button class="chk" data-act="t-cardio-done" data-ei="${ei}" aria-label="${tr('Gotovo')}">${pe.cardio.done ? "✓" : ""}</button>
+            <div class="stpr"><input inputmode="numeric" data-act="t-cardio-min" data-ei="${ei}" value="${pe.cardio.minutes || 0}" style="width:64px" aria-label="${tr('Minute')}"><span class="mut" style="font-size:12px;padding-right:8px">min</span></div>
+            <div class="stpr"><input inputmode="decimal" data-act="t-cardio-km" data-ei="${ei}" value="${pe.cardio.km || 0}" style="width:64px" aria-label="${tr('Km')}"><span class="mut" style="font-size:12px;padding-right:8px">km</span></div>
+          </div>
+        </div>`;
+        }
         const bw = bestWeightTimes(S.training.sessions, row.exerciseId);
         const last = lastBestSet(S.training.sessions, row.exerciseId);
         return `
-        <div class="mb12">
+        ${ssHdr}
+        <div class="mb12"${row.group ? ' style="border-left:3px solid var(--amber);padding-left:10px"' : ""}>
           <div class="row spread mb6">
             <span style="font-size:14.5px;font-weight:600">${esc(exName(row.exerciseId))}</span>
             ${bw.weight ? `<span class="num sub" style="margin:0">${tr("najbolje")} ${bw.weight} kg · ${bw.times}×</span>` : ""}
           </div>
           ${last ? `<div class="num sub2" style="margin:-2px 0 8px">${tr("prošli put")}: ${last.reps} × ${last.weight} kg</div>` : ""}
+          ${pe.sets.length ? `<div class="sethdr"><span style="width:32px"></span><span style="width:110px">${tr("pon.")}</span><span style="width:9px"></span><span style="width:110px">${tr("kg")}</span></div>` : ""}
           ${pe.sets.map((s, si) => `
             <div class="setrow${s.done ? " done" : ""}">
               <button class="chk" data-act="t-set-done" data-ei="${ei}" data-si="${si}" aria-label="${tr('Gotovo')}">${s.done ? "✓" : ""}</button>
@@ -388,7 +433,7 @@ function paneLog(active) {
     <div class="row spread mb10" style="margin-top:4px">
       <span class="eyebrow">${tr("Predlošci")}</span>
       <div class="row" style="gap:6px">
-        <button class="btn btn-g sm" data-act="import-train"${typeof aiConfigured === "function" && aiConfigured() ? "" : " disabled"}>${tr("Iz slike")}</button>
+        <button class="btn btn-g sm" data-act="import-train">${tr("Uvezi")}</button>
         <button class="btn btn-p sm" data-act="t-new-tpl">${tr("Novi predložak")}</button>
       </div>
     </div>`;
@@ -414,6 +459,11 @@ function collectTemplate() {
   if (!t) return;
   if ($("#tt_title")) t.title = $("#tt_title").value;
   t.exercises.forEach((row, i) => {
+    if (exIsCardio(row.exerciseId)) {
+      row.cardio = { minutes: Math.max(0, num(($("#ts_min_" + i) || {}).value, (row.cardio || {}).minutes || 0)), km: Math.max(0, num(($("#ts_km_" + i) || {}).value, (row.cardio || {}).km || 0)) };
+      row.targetSets = []; row.restSeconds = 0;
+      return;
+    }
     const nSets = Math.max(1, parseInt(($("#ts_sets_" + i) || {}).value || row.targetSets.length, 10) || 1);
     const reps = num(($("#ts_reps_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].reps : 5);
     const wt = num(($("#ts_wt_" + i) || {}).value, row.targetSets[0] ? row.targetSets[0].weight : 0);
@@ -423,7 +473,12 @@ function collectTemplate() {
 }
 
 function stripMeta(t) {
-  return { id: t.id, title: t.title, exercises: t.exercises.map((r) => ({ exerciseId: r.exerciseId, order: r.order, restSeconds: r.restSeconds, targetSets: r.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) };
+  return { id: t.id, title: t.title, exercises: t.exercises.map((r) => {
+    const o = { exerciseId: r.exerciseId, order: r.order, restSeconds: r.restSeconds, targetSets: (r.targetSets || []).map((s) => ({ reps: s.reps, weight: s.weight })) };
+    if (r.group) o.group = r.group;
+    if (r.cardio) o.cardio = { minutes: r.cardio.minutes || 0, km: r.cardio.km || 0 };
+    return o;
+  }) };
 }
 
 /* ---------- radnje (vlastiti listener; app.js ignorira t-* akcije) ---------- */
@@ -447,6 +502,12 @@ document.addEventListener("click", (e) => {
     S.sheet = { type: "t-exercise", ex: Object.assign({ _editing: true }, JSON.parse(JSON.stringify(ex))) };
     renderSheet(); return;
   }
+  if (a === "t-ex-type") {
+    const ex = S.sheet.ex;
+    ex.name = ($("#tx_name") || {}).value !== undefined ? $("#tx_name").value : ex.name;
+    ex.type = el.dataset.v === "cardio" ? "cardio" : "strength";
+    renderSheet(); return;
+  }
   if (a === "t-ex-muscle" || a === "t-ex-equip") {
     const key = a === "t-ex-muscle" ? "muscles" : "equipment";
     const v = el.dataset.v;
@@ -464,10 +525,10 @@ document.addEventListener("click", (e) => {
     if (!ex.id) {
       if (S.training.exercises.some((y) => y.name.trim().toLowerCase() === ex.name.toLowerCase())) { toast(tr('„{name}“ već postoji', { name: ex.name })); return; }
       ex.id = uid("ex");
-      S.training.exercises.push({ id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] });
+      S.training.exercises.push({ id: ex.id, name: ex.name, type: ex.type === "cardio" ? "cardio" : "strength", muscles: ex.muscles || [], equipment: ex.equipment || [] });
     } else {
       const i = S.training.exercises.findIndex((y) => y.id === ex.id);
-      S.training.exercises[i] = { id: ex.id, name: ex.name, muscles: ex.muscles || [], equipment: ex.equipment || [] };
+      S.training.exercises[i] = { id: ex.id, name: ex.name, type: ex.type === "cardio" ? "cardio" : "strength", muscles: ex.muscles || [], equipment: ex.equipment || [] };
     }
     if (saveTraining()) toast(tr("Spremljeno"));
     S.sheet = null; render(); return;
@@ -531,6 +592,12 @@ document.addEventListener("click", (e) => {
     }
     saveTraining(); render(); return;
   }
+  if (a === "t-cardio-done") {
+    collectActiveSets();
+    const pe = activeSession(S.training).log.performedExercises[parseInt(el.dataset.ei, 10)];
+    if (pe && pe.cardio) pe.cardio.done = !pe.cardio.done;
+    saveTraining(); render(); return;
+  }
   if (a === "t-rest-skip") { S.rest = null; render(); return; }
   if (a === "t-rest-plus") { if (S.rest) { S.rest.endsAt += 15000; ensureTickers(); } return; }
   if (a === "t-finish") {
@@ -585,7 +652,27 @@ document.addEventListener("click", (e) => {
     collectTemplate();
     const id = $("#tt_add_ex").value;
     const t = S.sheet.tpl;
-    t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 90, targetSets: [ { reps: 5, weight: 0 }, { reps: 5, weight: 0 }, { reps: 5, weight: 0 } ] });
+    if (exIsCardio(id)) t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 0, targetSets: [], cardio: { minutes: 30, km: 0 } });
+    else t.exercises.push({ exerciseId: id, order: t.exercises.length, restSeconds: 90, targetSets: [ { reps: 5, weight: 0 }, { reps: 5, weight: 0 }, { reps: 5, weight: 0 } ] });
+    renderSheet(); return;
+  }
+  if (a === "t-tpl-link") {
+    collectTemplate();
+    const t = S.sheet.tpl, i = parseInt(el.dataset.i, 10);
+    const row = t.exercises[i], prev = t.exercises[i - 1];
+    if (!prev) return;
+    if (row.group && prev.group === row.group) {
+      // Odspoji: ovaj i sve iza njega s istom oznakom gube grupu.
+      const g = row.group;
+      for (let j = i; j < t.exercises.length && t.exercises[j].group === g; j++) delete t.exercises[j].group;
+      // Grupa s jednim članom nije superset — makni oznaku i s prethodne.
+      if (!(i >= 2 && t.exercises[i - 2].group === g)) delete prev.group;
+    } else {
+      if (!prev.group) prev.group = nextGroupLetter(t.exercises);
+      row.group = prev.group;
+      // U supersetu se pauza drži tek nakon zadnje vježbe u grupi.
+      prev.restSeconds = 0;
+    }
     renderSheet(); return;
   }
   if (a === "t-tpl-rm") { collectTemplate(); S.sheet.tpl.exercises.splice(parseInt(el.dataset.i, 10), 1); renderSheet(); return; }
@@ -629,7 +716,7 @@ document.addEventListener("click", (e) => {
     if (existing) { S.sheet = { type: "t-resume", pending: { templateId: s ? s.templateId : "" } }; renderSheet(); return; }
     // Pretvori planiranu sesiju u aktivnu koristeći njezin snapshot.
     s.status = "active"; s.startedAt = Date.now();
-    s.log = { performedExercises: s.snapshot.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((z) => ({ reps: z.reps, weight: z.weight })) })) };
+    s.log = { performedExercises: s.snapshot.exercises.map(perfFromRow) };
     saveTraining(); registerLeaveGuard();
     S.tab = "trening"; S.trainingTab = "log"; S.sheet = null; render(); return;
   }
@@ -661,7 +748,7 @@ function startSession(templateId) {
   const session = {
     id: uid("ses"), date: dateKey(S.day || new Date()), templateId: tpl.id,
     status: "active", startedAt: Date.now(), snapshot: snap,
-    log: { performedExercises: snap.exercises.map((row) => ({ exerciseId: row.exerciseId, sets: row.targetSets.map((s) => ({ reps: s.reps, weight: s.weight })) })) },
+    log: { performedExercises: snap.exercises.map(perfFromRow) },
   };
   S.training.sessions.push(session);
   saveTraining();
@@ -681,6 +768,12 @@ function collectActiveSets() {
   document.querySelectorAll('[data-act="t-set-wt"]').forEach((inp) => {
     const ei = parseInt(inp.dataset.ei, 10), si = parseInt(inp.dataset.si, 10);
     if (active.log.performedExercises[ei] && active.log.performedExercises[ei].sets[si]) active.log.performedExercises[ei].sets[si].weight = num(inp.value, 0);
+  });
+  document.querySelectorAll('[data-act="t-cardio-min"],[data-act="t-cardio-km"]').forEach((inp) => {
+    const ei = parseInt(inp.dataset.ei, 10);
+    const pe = active.log.performedExercises[ei];
+    if (!pe || !pe.cardio) return;
+    pe.cardio[inp.dataset.act === "t-cardio-min" ? "minutes" : "km"] = Math.max(0, num(inp.value, 0));
   });
   saveTraining();
 }

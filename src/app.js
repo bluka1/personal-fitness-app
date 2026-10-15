@@ -1034,10 +1034,31 @@ function sheetMealEdit(m) {
       <h2>${tr("Uredi unos")}</h2>
       <button class="btn btn-g sm" data-act="close">${tr("Odustani")}</button>
     </div>
-    <div class="ellip" style="font-weight:500;margin-bottom:12px">${esc(gi ? gi.iname : m.name)}</div>
-    <label class="eyebrow">${gi ? tr("Gramaža (g)") : tr("Broj porcija")}</label>
-    <input inputmode="decimal" id="me_q" value="${gi ? gi.g : m.servings}" style="margin:6px 0 14px">
-    <button class="btn btn-p wide" data-act="meal-save" data-id="${m.id}">${tr("Spremi")}</button>
+    <label class="eyebrow">${tr("Naziv")}</label>
+    <input id="me_name" value="${esc(gi ? gi.iname : m.name)}" style="margin:6px 0 12px">
+    <div class="row" style="gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <label class="eyebrow">${tr("Obrok")}</label>
+        <select id="me_slot" style="margin-top:6px">${SLOTS.map((s) => `<option value="${s.id}"${s.id === m.slot ? " selected" : ""}>${tr(s.label)}</option>`).join("")}</select>
+      </div>
+      <div style="width:110px">
+        <label class="eyebrow">${gi ? tr("Gramaža (g)") : tr("Broj porcija")}</label>
+        <input inputmode="decimal" id="me_q" value="${gi ? gi.g : m.servings}" style="margin-top:6px">
+      </div>
+    </div>
+    ${gi ? `<p class="note">${tr("Makroi se računaju iz gramaže (na 100 g: {k} kcal · {p}P · {c}UH · {f}M).", { k: r0(gi.base.kcal), p: r1(gi.base.p), c: r1(gi.base.c), f: r1(gi.base.f) })}</p>` : `
+    <div class="eyebrow mb8">${tr("Makroi po porciji")}</div>
+    <div class="row" style="gap:8px;margin-bottom:14px">
+      ${[["kcal", "kcal"], ["p", "P"], ["c", "UH"], ["f", "M"]].map(([k, l]) => `
+        <div style="flex:1">
+          <input inputmode="decimal" id="me_${k}" value="${Math.round((m[k] || 0) * 10) / 10}" class="mini">
+          <div class="eyebrow center" style="margin-top:4px">${l}</div>
+        </div>`).join("")}
+    </div>`}
+    <div class="row" style="gap:8px">
+      <button class="btn btn-p grow" data-act="meal-save" data-id="${m.id}">${tr("Spremi")}</button>
+      <button class="btn btn-g" data-act="meal-del" data-id="${m.id}">${tr("Obriši")}</button>
+    </div>
   </div>`;
 }
 
@@ -1081,7 +1102,7 @@ function sheetImport(s) {
   const helps = {
     ing: tr('Zalijepi JSON niz namirnica, ili analiziraj sliku deklaracije (makroi na 100 g).'),
     rec: tr("Zalijepi JSON niz recepata, ili analiziraj sliku recepta."),
-    train: tr("Analiziraj sliku plana treninga, pa pregledaj i uvezi."),
+    train: tr("Zalijepi JSON treninga ili analiziraj sliku plana. Oblik: {\"title\":\"...\",\"exercises\":[{\"name\":\"Zgibovi\",\"sets\":3,\"reps\":8,\"weight\":0,\"rest\":90,\"superset\":\"A\"},{\"name\":\"Trčanje\",\"type\":\"cardio\",\"minutes\":30,\"km\":5}]}"),
     plate: tr("Analiziraj sliku tanjura — AI procijeni makrose i doda obrok danas. Procjena, pregledaj prije uvoza."),
     all: tr("Zalijepi sadržaj preuzete kopije. Prepisuje namirnice, recepte, ciljeve i dnevnike."),
   };
@@ -1298,15 +1319,24 @@ document.addEventListener("click", (e) => {
     const q = num($("#me_q").value, 0);
     if (!q || q <= 0) { toast(tr("Upiši broj veći od 0")); return; }
     const gi = mealGramsInfo(m);
+    const newName = ($("#me_name").value || "").trim();
+    if ($("#me_slot")) m.slot = $("#me_slot").value;
     if (gi) {
       const k = q / 100;
       // Zapiši base/iname/g natrag (stari zapisi ih dobiju pa idući edit ide čisto).
-      m.base = gi.base; m.iname = gi.iname; m.g = q;
+      m.base = gi.base; m.iname = newName || gi.iname; m.g = q;
       m.kcal = gi.base.kcal * k; m.p = gi.base.p * k; m.c = gi.base.c * k; m.f = gi.base.f * k;
-      m.name = gi.iname + " (" + q + " g)";
+      m.name = m.iname + " (" + q + " g)";
     } else {
       m.servings = q;
+      if (newName) m.name = newName;
+      ["kcal", "p", "c", "f"].forEach((k) => { if ($("#me_" + k)) m[k] = Math.max(0, num($("#me_" + k).value, m[k] || 0)); });
     }
+    saveLogs(); S.sheet = null; render(); return;
+  }
+  if (a === "meal-del") {
+    const log = today();
+    log.meals = log.meals.filter((x) => x.id !== el.dataset.id);
     saveLogs(); S.sheet = null; render(); return;
   }
 
@@ -1388,6 +1418,14 @@ document.addEventListener("click", (e) => {
     collectRecipe();
     const r = S.sheet.recipe;
     if (!r.name.trim()) { toast(tr("Recept treba naziv")); return; }
+    if (r.mode === "direct") {
+      const m = r.macros || {};
+      if (!(m.kcal > 0)) { toast(tr("Upiši makroe — barem kcal mora biti veći od 0")); return; }
+    } else {
+      const missing = (r.items || []).filter((it) => !S.ingredients.find((x) => x.id === it.ing));
+      if (missing.length) { toast(tr("Neke namirnice nisu u bazi. Dodaj ih ili prebaci na „Upišem makroe”.")); return; }
+      if (!(r.items || []).length) { toast(tr("Dodaj barem jednu namirnicu ili upiši makroe")); return; }
+    }
     r.servings = Math.max(1, Math.round(r.servings) || 1);
     r.steps = (r.steps || []).map((s) => s.trim()).filter(Boolean);
     r.ing = (r.ing || []).map((s) => s.trim()).filter(Boolean);
@@ -1490,7 +1528,7 @@ document.addEventListener("click", (e) => {
     } else if (el.dataset.kind === "rec") {
       if (!Array.isArray(obj)) { $("#imp_err").textContent = tr("Očekujem niz [ ... ]"); return; }
       const slotIds = SLOTS.map((s) => s.id);
-      let added = 0;
+      let added = 0, impErr = "";
       obj.forEach((x) => {
         if (!x || !x.name) return;
         const mode = x.mode === "items" ? "items" : "direct";
@@ -1515,18 +1553,33 @@ document.addEventListener("click", (e) => {
           });
           const missing = rec.items.filter((it) => !S.ingredients.some((i) => i.id === it.ing));
           if (missing.length) {
-            $("#imp_err").textContent = tr("Recept „{name}” traži namirnicu koje nema. Uvezi prvo namirnice.", { name: rec.name });
-            return;
+            const m = x.macros || {};
+            if (!(num(m.kcal, 0) > 0)) {
+              impErr = tr("Recept „{name}” traži namirnicu koje nema. Uvezi prvo namirnice ili dodaj \"macros\" u recept.", { name: rec.name });
+              return;
+            }
+            // Namirnice nisu sve u bazi, ali makroi jesu: spremi kao izravni recept,
+            // a sastojke zadrži kao tekstualnu listu (naziv + gramaža).
+            rec.mode = "direct";
+            rec.macros = { kcal: num(m.kcal, 0), p: num(m.p, 0), c: num(m.c, 0), f: num(m.f, 0) };
+            rec.ing = (x.items || []).map((it) => { const nm = it.name || (S.ingredients.find((i) => i.id === it.ing) || {}).name || "?"; return nm + (it.g ? " " + it.g + " g" : ""); }).concat(rec.ing);
+            rec.items = [];
           }
         } else {
           const m = x.macros || {};
+          if (!(num(m.kcal, 0) > 0)) {
+            impErr = tr("Recept „{name}” nema makroe (macros.kcal). Bez namirnica u bazi makroi su obavezni.", { name: rec.name });
+            return;
+          }
           rec.macros = { kcal: num(m.kcal, 0), p: num(m.p, 0), c: num(m.c, 0), f: num(m.f, 0) };
+          if (Array.isArray(x.items) && x.items.length) rec.ing = x.items.map((it) => String(it.name || "?") + (it.g ? " " + it.g + " g" : "")).concat(rec.ing);
         }
         S.recipes.push(rec);
         added++;
       });
-      if (!added) { if (!$("#imp_err").textContent) $("#imp_err").textContent = tr("Nijedan recept nije prepoznat."); return; }
+      if (!added) { $("#imp_err").textContent = impErr || tr("Nijedan recept nije prepoznat."); return; }
       saveData(); toast(tr("Dodano recepata: {n}", { n: added }));
+      if (impErr) { renderSheet(); $("#imp_err").textContent = tr("Dodano: {n}. Preskočeno: ", { n: added }) + impErr; return; } // dio preskočen — ostavi poruku vidljivu
     } else if (el.dataset.kind === "train") {
       if (!S.training) { $("#imp_err").textContent = tr("Trening modul nije učitan."); return; }
       // Toleriraj razne oblike koje modeli vrate: {title,exercises:[...]} (ravno),
@@ -1540,8 +1593,16 @@ document.addEventListener("click", (e) => {
       const arr = (x) => (Array.isArray(x) ? x.map(String) : []);
       const rows = rowsIn.map((rr, i) => {
         const nm = String(rr.name || rr.exercise || tr("vježba"));
+        const isCardio = rr.type === "cardio" || rr.minutes != null || rr.km != null;
         let ex = findEx(nm);
-        if (!ex) { ex = { id: uid("ex"), name: nm, muscles: arr(rr.muscles), equipment: arr(rr.equipment) }; S.training.exercises.push(ex); }
+        if (!ex) { ex = { id: uid("ex"), name: nm, type: isCardio ? "cardio" : "strength", muscles: arr(rr.muscles), equipment: arr(rr.equipment) }; S.training.exercises.push(ex); }
+        else if (isCardio && ex.type !== "cardio") ex.type = "cardio";
+        const group = rr.superset != null && rr.superset !== "" && rr.superset !== false ? String(rr.superset).toUpperCase() : (rr.group ? String(rr.group).toUpperCase() : "");
+        if (ex.type === "cardio") {
+          const row = { exerciseId: ex.id, order: i, restSeconds: 0, targetSets: [], cardio: { minutes: Math.max(0, num(rr.minutes, 0)), km: Math.max(0, num(rr.km, 0)) } };
+          if (group) row.group = group;
+          return row;
+        }
         // Serije: niz {reps,weight}, ili targetSets, ili ravno sets(broj)+reps+weight.
         let sets;
         const src = Array.isArray(rr.sets) ? rr.sets : Array.isArray(rr.targetSets) ? rr.targetSets : null;
@@ -1553,7 +1614,14 @@ document.addEventListener("click", (e) => {
           const wt = num(rr.weight, 0);
           sets = Array.from({ length: n }, () => ({ reps: reps, weight: wt }));
         }
-        return { exerciseId: ex.id, order: i, restSeconds: Math.max(0, Math.round(num(rr.restSeconds, 90))), targetSets: sets };
+        const row = { exerciseId: ex.id, order: i, restSeconds: Math.max(0, Math.round(num(rr.restSeconds != null ? rr.restSeconds : rr.rest, 90))), targetSets: sets };
+        if (group) row.group = group;
+        return row;
+      });
+      // Superset: pauza se drži tek nakon zadnje vježbe u grupi (ako nije izričito zadana).
+      rows.forEach((row, i) => {
+        const nx = rows[i + 1];
+        if (row.group && nx && nx.group === row.group && rowsIn[i].restSeconds == null && rowsIn[i].rest == null) row.restSeconds = 0;
       });
       S.training.templates.push({ id: uid("tpl"), title: String(title || tr("Uvezeni trening")), exercises: rows });
       if (typeof saveTraining === "function") saveTraining();
@@ -1639,6 +1707,14 @@ function fitSheet() {
   el.style.height = vv.height + "px";
   el.style.bottom = "auto";
 }
+/* iOS: position:fixed;bottom:0 se "zalijepi" iznad tipkovnice. Sakrij nav dok
+   je neki input u fokusu; vrati ga kad se tipkovnica spusti. */
+document.addEventListener("focusin", (e) => {
+  if (e.target.matches("input,textarea,select")) { const n = document.getElementById("nav"); if (n) n.classList.add("kb"); }
+});
+document.addEventListener("focusout", () => {
+  setTimeout(() => { if (!document.activeElement || !document.activeElement.matches("input,textarea,select")) { const n = document.getElementById("nav"); if (n) n.classList.remove("kb"); } }, 50);
+});
 if (window.visualViewport) {
   visualViewport.addEventListener("resize", fitSheet);
   visualViewport.addEventListener("scroll", fitSheet);

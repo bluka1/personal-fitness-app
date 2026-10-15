@@ -69,11 +69,18 @@ function lastBestSet(sessions, exerciseId) {
   return best;
 }
 
+/* Ukupno minuta kardija u sesiji (0 ako ga nema). */
+function sessionCardioMinutes(session) {
+  const pe = session && session.log && session.log.performedExercises;
+  if (!pe) return 0;
+  return pe.reduce((a, ex) => a + ((ex.cardio && ex.cardio.minutes) || 0), 0);
+}
+
 function activeSession(training) {
   const list = (training && training.sessions) || [];
   return list.find((s) => s.status === "active") || null;
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { cloneTemplate, sessionVolume, sessionSetCount, bestWeight, bestWeightTimes, lastBestSet, activeSession };
+  module.exports = { cloneTemplate, sessionVolume, sessionSetCount, sessionCardioMinutes, bestWeight, bestWeightTimes, lastBestSet, activeSession };
 }
